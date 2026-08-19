@@ -1,0 +1,627 @@
+<title>Rally Point</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* ---------- tokens: light (completo) ---------- */
+  :root {
+    --bg:          #EBEFF4;
+    --surface:     #FFFFFF;
+    --surface-2:   #DFE6EE;
+    --ink:         #121B26;
+    --ink-2:       #4B596A;
+    --ink-3:       #7B8798;
+    --line:        #C7D2DF;
+    --line-soft:   #DBE3EC;
+    --accent:      #C8481A;
+    --accent-ink:  #FFFFFF;
+    --accent-soft: #F8E6DD;
+    --court:       #1D5A9E;
+    --court-soft:  #DDE8F5;
+    --done:        #1F7A63;
+    --shadow:      0 1px 2px rgba(18,27,38,.06), 0 8px 24px -12px rgba(18,27,38,.18);
+  }
+  /* ---------- tokens: dark ---------- */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:          #0B131E;
+      --surface:     #121D2B;
+      --surface-2:   #1A2839;
+      --ink:         #E7EEF7;
+      --ink-2:       #98A9BE;
+      --ink-3:       #6C7D93;
+      --line:        #24344A;
+      --line-soft:   #1B2939;
+      --accent:      #FF7D42;
+      --accent-ink:  #1A0D06;
+      --accent-soft: #2C1A10;
+      --court:       #5B9BE0;
+      --court-soft:  #142334;
+      --done:        #3FB393;
+      --shadow:      0 1px 2px rgba(0,0,0,.35), 0 10px 28px -14px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:          #0B131E;
+    --surface:     #121D2B;
+    --surface-2:   #1A2839;
+    --ink:         #E7EEF7;
+    --ink-2:       #98A9BE;
+    --ink-3:       #6C7D93;
+    --line:        #24344A;
+    --line-soft:   #1B2939;
+    --accent:      #FF7D42;
+    --accent-ink:  #1A0D06;
+    --accent-soft: #2C1A10;
+    --court:       #5B9BE0;
+    --court-soft:  #142334;
+    --done:        #3FB393;
+    --shadow:      0 1px 2px rgba(0,0,0,.35), 0 10px 28px -14px rgba(0,0,0,.7);
+  }
+
+  /* ---------- base ---------- */
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .rp-shell {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: clamp(28px, 5vw, 64px) clamp(18px, 4vw, 36px) 96px;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(40px, 6vw, 68px);
+  }
+  h1, h2, h3 { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; text-wrap: balance; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+  .rp-eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .7rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 10px;
+  }
+
+  /* ---------- header ---------- */
+  .rp-head { display: flex; flex-direction: column; gap: 18px; }
+  .rp-head h1 {
+    font-size: clamp(2.4rem, 7vw, 3.9rem);
+    font-weight: 800;
+    letter-spacing: -.035em;
+    line-height: .98;
+    margin: 0;
+  }
+  .rp-head h1 .rp-mark { color: var(--accent); }
+  .rp-lede {
+    font-size: clamp(1.02rem, 2vw, 1.18rem);
+    color: var(--ink-2);
+    max-width: 60ch;
+    margin: 0;
+  }
+  .rp-meta {
+    display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .78rem; color: var(--ink-3);
+    padding-top: 6px; border-top: 1px solid var(--line-soft);
+  }
+
+  .rp-now {
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: 10px;
+    padding: 16px 18px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .rp-now-label {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .68rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent);
+  }
+  .rp-now-body { color: var(--ink); font-size: .95rem; }
+
+  /* ---------- sections ---------- */
+  .rp-sec { display: flex; flex-direction: column; gap: 18px; }
+  .rp-sec > h2 {
+    font-size: clamp(1.35rem, 3vw, 1.7rem);
+    font-weight: 700; letter-spacing: -.02em; margin: 0;
+  }
+  .rp-sec p { margin: 0; max-width: 68ch; color: var(--ink-2); }
+  .rp-sec p strong { color: var(--ink); font-weight: 600; }
+
+  .rp-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+  .rp-pad { padding: clamp(18px, 3vw, 26px); }
+
+  /* ---------- court diagram ---------- */
+  .rp-court-wrap { overflow-x: auto; }
+  .rp-court { display: block; width: 100%; min-width: 460px; height: auto; }
+  .rp-axis-key {
+    display: flex; flex-wrap: wrap; gap: 10px 26px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .78rem; color: var(--ink-2);
+    border-top: 1px solid var(--line-soft);
+    padding-top: 14px; margin-top: 4px;
+  }
+  .rp-axis-key b { color: var(--accent); font-weight: 500; }
+
+  /* ---------- tables ---------- */
+  .rp-tablewrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); }
+  table.rp-t { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  table.rp-t th, table.rp-t td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--line-soft); }
+  table.rp-t thead th {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .68rem; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 500; background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+  }
+  table.rp-t tbody tr:last-child td { border-bottom: 0; }
+  table.rp-t td.rp-num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink); white-space: nowrap;
+  }
+  table.rp-t td.rp-sym { font-family: "IBM Plex Mono", ui-monospace, monospace; color: var(--court); white-space: nowrap; }
+  table.rp-t td { color: var(--ink-2); }
+
+  /* ---------- milestones ---------- */
+  .rp-ms { display: flex; flex-direction: column; gap: 0; }
+  .rp-ms-row {
+    display: grid;
+    grid-template-columns: 58px 1fr auto;
+    gap: 4px 18px;
+    align-items: baseline;
+    padding: 16px 4px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .rp-ms-row:last-child { border-bottom: 0; }
+  .rp-ms-id {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .82rem; font-weight: 500;
+    color: var(--ink-3); font-variant-numeric: tabular-nums;
+  }
+  .rp-ms-row[data-state="now"] .rp-ms-id { color: var(--accent); }
+  .rp-ms-t { font-family: Archivo, sans-serif; font-weight: 700; font-size: 1.02rem; letter-spacing: -.01em; }
+  .rp-ms-d { grid-column: 2 / -1; color: var(--ink-2); font-size: .9rem; margin-top: 2px; }
+  .rp-chip {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .64rem; letter-spacing: .1em; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 99px; white-space: nowrap;
+    border: 1px solid var(--line); color: var(--ink-3);
+  }
+  .rp-ms-row[data-state="now"] .rp-chip {
+    background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+  }
+  .rp-ms-row[data-state="done"] .rp-chip { border-color: var(--done); color: var(--done); }
+
+  /* ---------- checklist ---------- */
+  .rp-check { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+  .rp-check li {
+    display: grid; grid-template-columns: 18px 1fr; gap: 12px;
+    align-items: start; font-size: .93rem; color: var(--ink-2);
+  }
+  .rp-check li::before {
+    content: ""; width: 14px; height: 14px; margin-top: 5px;
+    border: 1.5px solid var(--line); border-radius: 3px; background: var(--bg);
+  }
+  .rp-check li[data-done]::before {
+    background: var(--done); border-color: var(--done);
+  }
+
+  /* ---------- rally flow ---------- */
+  .rp-flow-wrap { overflow-x: auto; }
+  .rp-flow { display: flex; align-items: center; gap: 8px; min-width: 640px; padding-bottom: 4px; }
+  .rp-node {
+    flex: 1 1 0;
+    background: var(--court-soft);
+    border: 1px solid color-mix(in srgb, var(--court) 32%, transparent);
+    color: var(--court);
+    border-radius: 8px; padding: 12px 8px; text-align: center;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .72rem; letter-spacing: .06em; text-transform: uppercase;
+  }
+  .rp-node[data-kind="serve"] {
+    background: var(--accent-soft); color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .rp-arrow { color: var(--ink-3); font-size: .9rem; flex: 0 0 auto; }
+  .rp-flow-note {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .74rem; color: var(--ink-3); margin-top: 12px;
+  }
+
+  /* ---------- code / tree ---------- */
+  pre.rp-pre {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .82rem; line-height: 1.7;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px 20px; margin: 0;
+    overflow-x: auto; color: var(--ink-2);
+  }
+  pre.rp-pre b { color: var(--ink); font-weight: 500; }
+  pre.rp-pre i { color: var(--ink-3); font-style: normal; }
+  code.rp-c {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .87em; background: var(--surface-2);
+    border: 1px solid var(--line-soft); border-radius: 4px;
+    padding: .08em .38em; color: var(--ink);
+  }
+
+  /* ---------- rule cards ---------- */
+  .rp-rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  .rp-rule { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  .rp-rule h3 { margin: 0 0 8px; font-size: .95rem; font-weight: 700; letter-spacing: -.01em; }
+  .rp-rule p { font-size: .86rem; color: var(--ink-2); margin: 0; }
+
+  .rp-quote {
+    border-left: 3px solid var(--accent);
+    padding: 4px 0 4px 18px;
+    color: var(--ink);
+    font-size: 1rem;
+  }
+
+  .rp-foot {
+    border-top: 1px solid var(--line-soft);
+    padding-top: 20px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .74rem; color: var(--ink-3);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .rp-ms-row { transition: background-color .15s ease; }
+  }
+  .rp-ms-row:hover { background: var(--surface); }
+</style>
+
+<div class="rp-shell">
+
+  <header class="rp-head">
+    <div>
+      <div class="rp-eyebrow">Unity 6 · C# · projeto solo</div>
+      <h1>Rally<span class="rp-mark">.</span>Point</h1>
+    </div>
+    <p class="rp-lede">
+      Roadmap e referência técnica do jogo de vôlei no estilo EA FC. Sete milestones,
+      da física da bola até o modo carreira — mais as constantes, convenções e decisões
+      de arquitetura que valem consulta enquanto o código anda.
+    </p>
+    <div class="rp-meta">
+      <span>início 19.08.2026</span>
+      <span>Unity 6000.5.9f1</span>
+      <span>~/workspace/volleyballGame</span>
+    </div>
+  </header>
+
+  <div class="rp-now">
+    <div class="rp-now-label">Onde estamos</div>
+    <div class="rp-now-body">
+      <strong>M0 — Rally sim.</strong> Estrutura de pastas criada, arquivos vazios.
+      Próximo: <code class="rp-c">BallState</code>, <code class="rp-c">BallPhysics.Step()</code>
+      e a predição do ponto de queda.
+    </div>
+  </div>
+
+  <!-- ============ QUADRA ============ -->
+  <section class="rp-sec">
+    <div>
+      <div class="rp-eyebrow">Referência 01</div>
+      <h2>A quadra e o sistema de coordenadas</h2>
+    </div>
+    <p>
+      Medidas oficiais FIVB. A convenção de eixos abaixo vale para <strong>todo</strong> o código
+      da simulação — <code class="rp-c">Y</code> continua sendo "pra cima" para bater com o padrão do Unity.
+    </p>
+
+    <div class="rp-card rp-pad">
+      <div class="rp-court-wrap">
+        <svg class="rp-court" viewBox="0 0 800 430" role="img"
+             aria-label="Diagrama da quadra de vôlei vista de cima: 18 metros por 9 metros, rede no centro, linhas de ataque a 3 metros da rede.">
+          <!-- área de jogo -->
+          <rect x="60" y="60" width="680" height="300" rx="2"
+                fill="var(--court-soft)" stroke="var(--line)" stroke-width="1"/>
+          <!-- linhas da quadra -->
+          <rect x="60" y="60" width="680" height="300"
+                fill="none" stroke="var(--court)" stroke-width="2.5"/>
+          <!-- linhas de ataque (3 m) -->
+          <line x1="286.7" y1="60" x2="286.7" y2="360" stroke="var(--court)" stroke-width="1.5" stroke-dasharray="7 6" opacity=".75"/>
+          <line x1="513.3" y1="60" x2="513.3" y2="360" stroke="var(--court)" stroke-width="1.5" stroke-dasharray="7 6" opacity=".75"/>
+          <!-- rede -->
+          <line x1="400" y1="42" x2="400" y2="378" stroke="var(--accent)" stroke-width="3"/>
+          <circle cx="400" cy="42" r="3.5" fill="var(--accent)"/>
+          <circle cx="400" cy="378" r="3.5" fill="var(--accent)"/>
+
+          <!-- cotas -->
+          <g font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--ink-3)">
+            <!-- 18 m -->
+            <line x1="60" y1="398" x2="740" y2="398" stroke="var(--line)" stroke-width="1"/>
+            <line x1="60" y1="393" x2="60" y2="403" stroke="var(--line)" stroke-width="1"/>
+            <line x1="740" y1="393" x2="740" y2="403" stroke="var(--line)" stroke-width="1"/>
+            <rect x="368" y="389" width="64" height="18" fill="var(--surface)"/>
+            <text x="400" y="402" text-anchor="middle" fill="var(--ink-2)">18 m · Z</text>
+            <!-- 9 m -->
+            <line x1="34" y1="60" x2="34" y2="360" stroke="var(--line)" stroke-width="1"/>
+            <line x1="29" y1="60" x2="39" y2="60" stroke="var(--line)" stroke-width="1"/>
+            <line x1="29" y1="360" x2="39" y2="360" stroke="var(--line)" stroke-width="1"/>
+            <text x="34" y="215" text-anchor="middle" transform="rotate(-90 34 215)" fill="var(--ink-2)">9 m · ±X</text>
+            <!-- 3 m -->
+            <text x="343" y="46" text-anchor="middle">3 m</text>
+            <line x1="292" y1="52" x2="394" y2="52" stroke="var(--line)" stroke-width="1"/>
+            <!-- rede -->
+            <text x="400" y="30" text-anchor="middle" fill="var(--accent)" font-size="12">rede · 2.43 m</text>
+          </g>
+
+          <!-- rótulos dos lados -->
+          <g font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--ink-3)" letter-spacing="1">
+            <text x="173" y="215" text-anchor="middle">LADO A · Z &lt; 0</text>
+            <text x="627" y="215" text-anchor="middle">LADO B · Z &gt; 0</text>
+            <text x="400" y="230" text-anchor="middle" fill="var(--accent)" font-size="10">origem</text>
+            <circle cx="400" cy="210" r="3" fill="var(--accent)"/>
+          </g>
+        </svg>
+      </div>
+      <div class="rp-axis-key">
+        <span><b>X</b> ao longo da rede · −4.5 → +4.5</span>
+        <span><b>Y</b> altura · 0 = chão</span>
+        <span><b>Z</b> comprimento · −9 → +9, rede em 0</span>
+        <span>origem no centro da quadra, no chão</span>
+      </div>
+    </div>
+
+    <div class="rp-tablewrap">
+      <table class="rp-t">
+        <thead>
+          <tr><th>Medida</th><th>Valor</th><th>Observação</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Quadra</td><td class="rp-num">18 × 9 m</td><td>cada lado 9 × 9</td></tr>
+          <tr><td>Rede — masculino</td><td class="rp-num">2.43 m</td><td>borda superior</td></tr>
+          <tr><td>Rede — feminino</td><td class="rp-num">2.24 m</td><td>flag por modalidade</td></tr>
+          <tr><td>Linha de ataque</td><td class="rp-num">3.00 m</td><td>a partir da rede</td></tr>
+          <tr><td>Altura livre</td><td class="rp-num">7.00 m</td><td>teto da simulação</td></tr>
+          <tr><td>Zona de saque</td><td class="rp-num">9 m</td><td>atrás da linha de fundo</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ FÍSICA ============ -->
+  <section class="rp-sec">
+    <div>
+      <div class="rp-eyebrow">Referência 02</div>
+      <h2>Física da bola</h2>
+    </div>
+    <p>
+      Integração própria, sem <code class="rp-c">Rigidbody</code> — o jogo precisa
+      <strong>prever</strong> onde a bola vai cair, para o marcador de sombra e para a IA.
+      Aceleração é gravidade mais arrasto quadrático:
+    </p>
+
+    <div class="rp-card rp-pad">
+      <pre class="rp-pre"><b>a = g − k · |v| · v</b>          <i>g = (0, −9.81, 0)</i>
+
+<b>k = (0.5 · ρ · Cd · A) / m</b>    <i>≈ 0.0314 m⁻¹</i></pre>
+    </div>
+
+    <div class="rp-tablewrap">
+      <table class="rp-t">
+        <thead>
+          <tr><th>Símbolo</th><th>Valor</th><th>Grandeza</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="rp-sym">ρ</td><td class="rp-num">1.225 kg/m³</td><td>densidade do ar</td></tr>
+          <tr><td class="rp-sym">Cd</td><td class="rp-num">0.40</td><td>arrasto — ajustar no playtest</td></tr>
+          <tr><td class="rp-sym">A</td><td class="rp-num">0.0346 m²</td><td>área frontal, π·0.105²</td></tr>
+          <tr><td class="rp-sym">m</td><td class="rp-num">0.270 kg</td><td>massa da bola</td></tr>
+          <tr><td class="rp-sym">r</td><td class="rp-num">0.105 m</td><td>raio</td></tr>
+          <tr><td class="rp-sym">k</td><td class="rp-num">0.0314 m⁻¹</td><td>constante derivada</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="rp-quote">
+      A predição do ponto de queda roda a <em>mesma</em> <code class="rp-c">Step()</code> da
+      simulação real, em cima de uma cópia do estado. Não existe fórmula analítica paralela —
+      por isso o marcador nunca pode divergir da bola.
+    </p>
+    <p>
+      Sanidade: num saque a 30 m/s o arrasto desacelera ≈ 28 m/s², quase 3G. É real — bola de vôlei
+      perde velocidade muito rápido, e é isso que dá o comportamento traiçoeiro do saque flutuante.
+      Só com gravidade, a bola parece uma pedra.
+    </p>
+  </section>
+
+  <!-- ============ ARQUITETURA ============ -->
+  <section class="rp-sec">
+    <div>
+      <div class="rp-eyebrow">Referência 03</div>
+      <h2>Arquitetura — Sim separado de View</h2>
+    </div>
+    <p class="rp-quote">
+      A simulação é C# puro. Zero <code class="rp-c">MonoBehaviour</code>,
+      <code class="rp-c">GameObject</code>, <code class="rp-c">UnityEngine.Physics</code>
+      ou <code class="rp-c">Time.deltaTime</code>. A camada Unity só lê o estado e desenha.
+    </p>
+    <pre class="rp-pre">Assets/Scripts/
+├── <b>Sim/</b>            <i>C# puro — o jogo de verdade</i>
+│   ├── Court.cs        <i>constantes e geometria</i>
+│   ├── BallState.cs    <i>struct: position, velocity</i>
+│   ├── BallPhysics.cs  <i>static, funções puras</i>
+│   ├── RallyState.cs   <i>máquina de estados</i>
+│   └── MatchSim.cs     <i>orquestra, expõe Tick()</i>
+├── <b>View/</b>           <i>MonoBehaviours — só desenham</i>
+│   ├── BallView.cs
+│   └── CourtView.cs
+└── <b>Bootstrap/</b>
+    └── GameRoot.cs     <i>único MonoBehaviour com Tick()</i></pre>
+    <p>
+      Exceção prática: <code class="rp-c">UnityEngine.Vector3</code> é permitido no
+      <code class="rp-c">Sim/</code> — é um struct de três floats, não puxa a engine.
+      O retorno vem cedo: no M3 você vai querer rodar 100 partidas em loop para balancear
+      atributos. Com essa separação são segundos; sem ela, é impossível.
+    </p>
+  </section>
+
+  <!-- ============ RALLY ============ -->
+  <section class="rp-sec">
+    <div>
+      <div class="rp-eyebrow">Referência 04</div>
+      <h2>O ciclo do rally</h2>
+    </div>
+    <p>
+      A vantagem estrutural do vôlei sobre o futebol: os times não se misturam e a sequência
+      de eventos é quase determinística. Isso é uma máquina de estados, não um sistema emergente.
+    </p>
+    <div class="rp-card rp-pad">
+      <div class="rp-flow-wrap">
+        <div class="rp-flow">
+          <div class="rp-node" data-kind="serve">Saque</div>
+          <div class="rp-arrow" aria-hidden="true">→</div>
+          <div class="rp-node">Recepção</div>
+          <div class="rp-arrow" aria-hidden="true">→</div>
+          <div class="rp-node">Levantamento</div>
+          <div class="rp-arrow" aria-hidden="true">→</div>
+          <div class="rp-node">Ataque</div>
+          <div class="rp-arrow" aria-hidden="true">→</div>
+          <div class="rp-node">Bloqueio</div>
+          <div class="rp-arrow" aria-hidden="true">→</div>
+          <div class="rp-node">Defesa</div>
+        </div>
+      </div>
+      <div class="rp-flow-note">
+        ↺ Defesa realimenta Levantamento · contador de 3 toques reseta a cada cruzamento da rede
+      </div>
+    </div>
+    <p>
+      A cadeia de causa e efeito é o jogo inteiro: passe ruim → levantador deslocado →
+      levantamento ruim → ataque previsível → bloqueio fácil. Se essa cadeia funcionar,
+      o jogo é divertido mesmo com bonecos de cubo.
+    </p>
+    <div class="rp-card rp-pad">
+      <pre class="rp-pre">qualidade = f(timing, posicionamento, atributo, pressão)
+trajetória = alvo_ideal + erro · (1 − qualidade)</pre>
+    </div>
+  </section>
+
+  <!-- ============ MILESTONES ============ -->
+  <section class="rp-sec">
+    <div>
+      <div class="rp-eyebrow">Roadmap</div>
+      <h2>Sete milestones</h2>
+    </div>
+    <p>
+      A ordem importa: cada um depende do anterior. Espere gastar cerca de
+      <strong>60% do tempo total em M0–M2</strong> — é lá que o jogo nasce ou morre.
+    </p>
+
+    <div class="rp-card rp-pad">
+      <div class="rp-ms">
+        <div class="rp-ms-row" data-state="now">
+          <div class="rp-ms-id">M0</div>
+          <div class="rp-ms-t">Rally sim</div>
+          <span class="rp-chip">em andamento</span>
+          <div class="rp-ms-d">Bola com física própria, quadra, máquina de estados, predição de queda. Sem arte. Prova que a bola se comporta como bola de vôlei.</div>
+        </div>
+        <div class="rp-ms-row" data-state="next">
+          <div class="rp-ms-id">M1</div>
+          <div class="rp-ms-t">Controle e timing</div>
+          <span class="rp-chip">planejado</span>
+          <div class="rp-ms-d">Um jogador controlável, janela de timing no toque, câmera. Prova que é <em>gostoso</em> de jogar.</div>
+        </div>
+        <div class="rp-ms-row">
+          <div class="rp-ms-id">M2</div>
+          <div class="rp-ms-t">Seis contra seis</div>
+          <span class="rp-chip">planejado</span>
+          <div class="rp-ms-d">Time completo, rodízio, IA de cobertura e leitura de bola. Prova que parece vôlei de verdade.</div>
+        </div>
+        <div class="rp-ms-row">
+          <div class="rp-ms-id">M3</div>
+          <div class="rp-ms-t">Regras completas</div>
+          <span class="rp-chip">planejado</span>
+          <div class="rp-ms-d">Rally point, cinco sets, faltas: quatro toques, toque duplo, invasão, condução. Prova que é um jogo, não um brinquedo.</div>
+        </div>
+        <div class="rp-ms-row">
+          <div class="rp-ms-id">M4</div>
+          <div class="rp-ms-t">IA adversária</div>
+          <span class="rp-chip">planejado</span>
+          <div class="rp-ms-d">Níveis de dificuldade, leitura de padrões, erro intencional calibrado.</div>
+        </div>
+        <div class="rp-ms-row">
+          <div class="rp-ms-id">M5</div>
+          <div class="rp-ms-t">Juice</div>
+          <span class="rp-chip">planejado</span>
+          <div class="rp-ms-d">Animação, som, câmera dinâmica, replay, efeito Magnus na bola. Prova que parece um produto.</div>
+        </div>
+        <div class="rp-ms-row">
+          <div class="rp-ms-id">M6</div>
+          <div class="rp-ms-t">Meta layer</div>
+          <span class="rp-chip">planejado</span>
+          <div class="rp-ms-d">Times, atributos por jogador (saque, passe, levantamento, ataque, bloqueio, defesa), menus, modo carreira. O "EA FC" de fato.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ M0 DoD ============ -->
+  <section class="rp-sec">
+    <div>
+      <div class="rp-eyebrow">Milestone atual</div>
+      <h2>M0 — critério de pronto</h2>
+    </div>
+    <p>Só isto, e nada além. Cenário é um plano cinza e um cubo esticado fazendo de rede.</p>
+    <div class="rp-card rp-pad">
+      <ul class="rp-check">
+        <li><code class="rp-c">Fixed Timestep</code> em <code class="rp-c">0.0166667</code> nas Project Settings</li>
+        <li><code class="rp-c">GameRoot</code> chama <code class="rp-c">sim.Tick(dt)</code> no <code class="rp-c">FixedUpdate</code></li>
+        <li>Espaço saca: a bola sai de um ponto com velocidade inicial e voa</li>
+        <li>Uma esfera segue <code class="rp-c">sim.Ball.Position</code> — a <code class="rp-c">BallView</code> só atribui <code class="rp-c">transform.position</code></li>
+        <li>Cilindro achatado no chão marca o ponto de queda previsto, atualizado todo frame</li>
+        <li>Toque no chão imprime <code class="rp-c">PONTO — Time A</code> ou <code class="rp-c">FORA</code></li>
+        <li>Teste unitário: saque de (4.5, 2.0, 8.0) a 18 m/s e 12° cai dentro da quadra adversária</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ ARMADILHAS ============ -->
+  <section class="rp-sec">
+    <div>
+      <div class="rp-eyebrow">Referência 05</div>
+      <h2>Onde a intuição de programador atrapalha</h2>
+    </div>
+    <div class="rp-rules">
+      <div class="rp-rule">
+        <h3>FixedUpdate, não Update</h3>
+        <p>Física e regras em <code class="rp-c">FixedUpdate</code>, passo fixo. Input, câmera e render em <code class="rp-c">Update</code>. Integrar com <code class="rp-c">deltaTime</code> variável faz o mesmo saque cair em lugares diferentes conforme o FPS — e o bug parece aleatório.</p>
+      </div>
+      <div class="rp-rule">
+        <h3>Composição, não herança</h3>
+        <p>Unity é ECS-ish: o <code class="rp-c">GameObject</code> é um saco vazio onde se plugam componentes. Hierarquia profunda de <code class="rp-c">MonoBehaviour</code> é a receita clássica de código ingerível.</p>
+      </div>
+      <div class="rp-rule">
+        <h3>MonoBehaviour não se testa</h3>
+        <p>Não dá <code class="rp-c">new</code>, não roda sem a engine, não simula dez mil saques por segundo. Por isso a simulação vive fora dele — e o Test Framework roda o <code class="rp-c">Sim/</code> direto.</p>
+      </div>
+      <div class="rp-rule">
+        <h3>Step() é função pura</h3>
+        <p><code class="rp-c">static BallState Step(BallState s, float dt)</code>. Euler semi-implícito: velocidade antes da posição. Na ordem inversa o integrador acumula energia e a bola sobe sozinha com o tempo.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="rp-foot">
+    Rally Point · roadmap vivo, atualizado a cada milestone · Caio · 2026
+  </footer>
+
+</div>
