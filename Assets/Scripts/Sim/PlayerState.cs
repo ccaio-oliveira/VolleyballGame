@@ -2,6 +2,8 @@ using UnityEngine;
 
 namespace Volley.Sim
 {
+    public enum PlayerRole { Passador, Levantador, Atacante }
+    
     /// <summary>O que define este atleta. No M6 vira a ficha do modo carreira.</summary>
     public struct PlayerAttributes
     {
@@ -26,5 +28,7 @@ namespace Volley.Sim
         public Vector3 Velocity;
         public int Id;
         public int Side;
+        public PlayerRole Role;
+        public Vector3 Base; // posição de formação
     }
 }

@@ -17,6 +17,9 @@ namespace Volley.Sim
             p.Position += p.Velocity * dt;
             p.Position.y = 0f;
 
+            const float minOff = 0.15f;
+            p.Position.z = p.Side < 0 ? Mathf.Min(p.Position.z, -minOff) : Mathf.Max(p.Position.z, minOff);
+
             return p;
         }
 

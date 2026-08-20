@@ -3,64 +3,149 @@ using UnityEngine;
 
 namespace Volley.Sim
 {
-    /// <summary>Orquestra a simulação: integra a bola, detecta eventos, resolve pontos.>/summary>
     public class MatchSim
     {
+        // ---------- bola ----------
         public BallState Ball;
         public bool BallLive;
         public Vector3 PredictedLanding;
         public bool HasPrediction;
 
-        public readonly RallyState Rally = new RallyState();
+        // ---------- contato ----------
+        public Vector3 ContactPoint;
+        public bool HasContact;
+        public float TimeToContact;
+        public TouchWindow Window = TouchWindow.Default;
+        public bool TouchArmed;
+        public float ArmedQuality;
 
+        // ---------- elenco ----------
+        public PlayerState[] Players = new PlayerState[6];
+        public PlayerAttributes[] Attrs = new PlayerAttributes[6];
+        public bool[] IsHuman = new bool[6];
+        public int HumanSide = Court.SideB;
+        public float SpikeX = 2.0f;
+        public float SpikeDepth = 5.0f;
+        public float MaxSpikeError = 3.0f;
+        public float MaxDisplacement = 3.0f;
+        public Vector2 MoveInput;
+
+        // ---------- alvos e tuning ----------
+        public float MaxPassError = 3.5f;
+        public float MaxSetError = 2.5f;
+
+        public readonly RallyState Rally = new RallyState();
         public float NetHeight = Court.NetHeightMen;
 
-        /// <summary>Canal de saída do Sim. Quem quiser logar, assina.</summary>
         public event Action<string> OnLog;
 
         private BallState _prev;
+        private int _resolvedTouch = -1;
+        private int _resolvedSide;
 
-        public PlayerState Receiver;
-        public PlayerAttributes ReceiverAttr = PlayerAttributes.Default;
-        public bool ReceiverReached;
-        public float ContactHeight = 0.9f;
-        public float TimeToContact;
-        public Vector3 ContactPoint;
-        public TouchWindow Window = TouchWindow.Default;
-        public float MaxPassError = 3.5f;
-        public Vector3 SetterSpot;
-        public bool HasContact;
-        public bool TouchArmed;
-        public float ArmedQuality;
-        public Vector2 MoveInput;
-        public bool AutoPosition = false;
-
+        private int _controlled = 0;
+        private int _controlTouch = -1;
+        private int _controlSide;
         private readonly System.Random _rng = new System.Random(12345);
 
+        private static int TeamBase(int side) => side == Court.SideA ? 0 : 3;
+
+        /// <summary>
+        /// Quem joga a próxima bola: no 1º toque quem estiver mais perto de onde a bola vai cair; depois o levantador e o atacante do time.
+        /// </summary>
+        public int ActiveIndex
+        {
+            get
+            {
+                int b = TeamBase(Rally.TouchingSide);
+                if (Rally.TouchCount == 0) return ClosestTo(b, PredictedLanding);
+
+                return b + Mathf.Clamp(Rally.TouchCount, 1, 2);
+            }
+        }
+
+        private int ClosestTo(int b, Vector3 p)
+        {
+            int best = b;
+            float bestD = float.MaxValue;
+
+            for (int k = 0; k < 3; k++)
+            {
+                float d = Vector2.Distance(
+                    new Vector2(Players[b + k].Position.x, Players[b + k].Position.z),
+                    new Vector2(p.x, p.z)
+                );
+
+                if (d < bestD)
+                {
+                    bestD = d;
+                    best = b + k;
+                }
+            }
+
+            return best;
+        }
+
+        /// <summary>Manchete na cintura, levantamento acima da cabeça.</summary>
+        public float ActiveContactHeight
+        {
+            get
+            {
+                switch (Rally.TouchCount)
+                {
+                    case 1: return 2.10f;
+                    case 2: return 3.00f;
+                    default: return 0.90f;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Quem o humano controla. Só muda em evento discreto, nunca no meio do voo.
+        /// </summary>
+        public int ControlledIndex => _controlled;
+
+        private void UpdateControl()
+        {
+            bool novaOportunidade = _controlTouch != Rally.TouchCount || _controlSide != Rally.TouchingSide;
+
+            if (!novaOportunidade) return;
+
+            _controlTouch = Rally.TouchCount;
+            _controlSide = Rally.TouchingSide;
+
+            _controlled = (Rally.TouchingSide == HumanSide) ? ActiveIndex : ClosestTo(TeamBase(HumanSide), PredictedLanding);
+        }
+
+        private static Vector3 SetterSpotOf(int side) => new Vector3(1.5f, 2.10f, 2.0f * side);
+        private static Vector3 AttackSpotOf(int side) => new Vector3(-3.0f, 3.00f, 1.2f * side);
+
+
+        // ================= saque =================
         public void Serve(Vector3 from, Vector3 velocity)
         {
             Ball = new BallState(from, velocity);
             BallLive = true;
             Rally.BeginServe(Court.SideOf(from.z));
-            OnLog?.Invoke($"saque do lado {SideName(Rally.TouchingSide)} " + $"de y={from.y:F2} a {velocity.magnitude:F1} m/s");
 
             int recvSide = -Court.SideOf(from.z);
-            Receiver = new PlayerState
-            {
-                Id = 0,
-                Side = recvSide,
-                Position = new Vector3(0f, 0f, 5f * recvSide),
-                Velocity = Vector3.zero
-            };
 
-            SetterSpot = new Vector3(1.5f, 2.2f, 2.0f * recvSide);
-            TimeToContact = 99f;
-            HasContact = false;
-            ContactPoint = Receiver.Position;
+            SetupTeam(Court.SideA);
+            SetupTeam(Court.SideB);
+
             TouchArmed = false;
-            ReceiverReached = false;
+            HasContact = false;
+            _resolvedTouch = -1;
+            TimeToContact = 99f;
+            ContactPoint = from;
+            _controlled = TeamBase(HumanSide);
+            _controlTouch = -1;
+            _controlSide = 0;
+
+            OnLog?.Invoke($"saque do lado {SideName(Rally.TouchingSide)} " + $"de y={from.y:F2} a {velocity.magnitude:F1} m/s");
         }
 
+        // ================= loop =================
         public void Tick(float dt)
         {
             if (!BallLive) return;
@@ -70,7 +155,7 @@ namespace Volley.Sim
 
             HasPrediction = BallPhysics.PredictLanding(Ball, Court.BallRadius, dt, 6f, out PredictedLanding, out _);
 
-            if (BallPhysics.PredictLanding(Ball, ContactHeight, dt, 6f, out Vector3 cp, out float tc))
+            if (BallPhysics.PredictLanding(Ball, ActiveContactHeight, dt, 6f, out Vector3 cp, out float tc))
             {
                 ContactPoint = cp;
                 TimeToContact = tc;
@@ -80,28 +165,65 @@ namespace Volley.Sim
                 TimeToContact -= dt;
             }
 
-            if (TouchArmed && TimeToContact <= 0f) ResolveTouch();
+            UpdateControl();
+            StepPlayers(dt);
 
-            if (AutoPosition)
+            // ORDEM IMPORTA: o levantador é avaliado ANTES do toque humano.
+            // Se fosse depois, a recepção incrementaria TouchCount para 1 e o
+            // levantador dispararia no mesmo tick, com a bola ainda na cintura.
+            bool jaResolvido = (_resolvedTouch == Rally.TouchCount && _resolvedSide == Rally.TouchingSide);
+
+            if (!jaResolvido && TimeToContact <= 0f)
             {
-                Vector3 alvo = (HasContact && Rally.TouchCount == 0) ? ContactPoint : Receiver.Position;
-                Receiver = PlayerPhysics.StepToTarget(Receiver, ReceiverAttr, alvo, dt);    
-            } else
-            {
-                Receiver = PlayerPhysics.StepDirect(Receiver, ReceiverAttr, MoveInput, dt);
+                int i = ActiveIndex;
+
+                if (IsHuman[i])
+                {
+                    if (TouchArmed)
+                    {
+                        ResolveTouch(i, ArmedQuality);
+                    }
+                } else
+                {
+                    ResolveTouch(i, AiQuality(i));
+                }
             }
 
-            if(DetectNetCrossing()) return;
+            if (DetectNetCrossing()) return;
             if (DetectCeiling()) return;
             if (DetectGround()) return;
         }
 
+        private void StepPlayers(float dt)
+        {
+            int ativo = ActiveIndex;
+            int controlado = ControlledIndex;
+
+            for (int i = 0; i < Players.Length; i++)
+            {
+                bool ownSide = Court.SideOf(ContactPoint.z) == Players[i].Side;
+
+                if (i == controlado && IsHuman[i])
+                {
+                    Players[i] = PlayerPhysics.StepDirect(Players[i], Attrs[i], MoveInput, dt);
+                } else if (i == ativo && HasContact && ownSide)
+                {
+                    Players[i] = PlayerPhysics.StepToTarget(Players[i], Attrs[i], ContactPoint, dt);
+                } else
+                {
+                    Players[i] = PlayerPhysics.StepToTarget(Players[i], Attrs[i], Players[i].Base, dt);
+                }
+            }
+        }
+
+        // ================= toques =================
         public void TryReceive()
         {
             if (!BallLive || TouchArmed) return;
-            if (Rally.TouchingSide != Receiver.Side) return;
-            if (!HasContact)
-            {
+            if (Rally.TouchingSide != Players[ActiveIndex].Side) return;
+            if(!IsHuman[ActiveIndex]) return;
+            if (!HasContact) 
+            { 
                 OnLog?.Invoke("sem ponto de contato");
                 return;
             }
@@ -120,7 +242,107 @@ namespace Volley.Sim
             OnLog?.Invoke($"{TouchTiming.Label(q)} q={q:F2} " + $"erro={TimeToContact:+0.00;-0.00}s");
         }
 
-        // ------ detecção por travessia ------
+        /// <summary>
+        /// Qualidade da IA: quanto ela foi obrigada a sair da posição.
+        /// </summary>
+        private float AiQuality(int i)
+        {
+            float desloc = Vector2.Distance(
+                new Vector2(Players[i].Position.x, Players[i].Position.z),
+                new Vector2(Players[i].Base.x, Players[i].Base.z)
+            );
+
+            return 1f - Mathf.Clamp01(desloc / MaxDisplacement);
+        }
+
+        private void ResolveTouch(int i, float q)
+        {
+            TouchArmed = false;
+            _resolvedTouch = Rally.TouchCount;
+            _resolvedSide = Rally.TouchingSide;
+
+            Vector2 flat = new Vector2(Ball.Position.x - Players[i].Position.x, Ball.Position.z - Players[i].Position.z);
+
+            if (flat.magnitude > Attrs[i].Reach)
+            {
+                OnLog?.Invoke($"[{Players[i].Role}] não alcançou - {flat.magnitude:F2} m");
+                return;
+            }
+
+            int side = Players[i].Side;
+
+            switch (Rally.TouchCount)
+            {
+                case 0:
+                    {
+                        Vector2 d = RandomInCircle(MaxPassError * (1f - q));
+                        Vector3 alvo = SetterSpotOf(side) + new Vector3(d.x, 0f, d.y);
+                        LaunchTo(KeepOffNet(alvo, side), 65f, i, $"passe q={q:F2} {d.magnitude:F2} m do levantador");
+                        break;
+                    }
+                case 1:
+                    {
+                        Vector2 d = RandomInCircle(MaxSetError * (1f - q));
+                        Vector3 alvo = AttackSpotOf(side) + new Vector3(d.x, 0f, d.y);
+                        LaunchTo(KeepOffNet(alvo, side), 70f, i, $"levantamento q={q:F2} {d.magnitude:F2} m do alvo");
+                        break;
+                    }
+                default:
+                    {
+                        Vector2 d = RandomInCircle(MaxSpikeError * (1f - q));
+                        Vector3 alvo = new Vector3(SpikeX + d.x, Court.BallRadius, (-SpikeDepth * side) + d.y);
+
+                        float folga = Mathf.Lerp(0.60f, 0.10f, q);
+
+                        if (BallPhysics.SolveFlattestLegal(Ball.Position, alvo, NetHeight, folga, 1f / 60f, out Vector3 v, -35f, 40f, 1f))
+                        {
+                            float ang = Mathf.Asin(v.normalized.y) * Mathf.Rad2Deg;
+                            Ball = new BallState(Ball.Position, v);
+                            Rally.OnTouch(i, side);
+                            OnLog?.Invoke($"ATAQUE q={q:F2} {v.magnitude:F1} m/s a {ang:F0}º" + $" [toque {Rally.TouchCount}/3]");
+                        } else
+                        {
+                            OnLog?.Invoke("sem angulo legal pro ataque");
+                        }
+                        break;
+                    }
+            }
+        }
+
+        /// <summary>Levantamento nunca é colocado em cima da rede nem do outro lado.</summary>
+        private static Vector3 KeepOffNet(Vector3 alvo, int side)
+        {
+            const float minOff = 0.6f;
+            if (Court.SideOf(alvo.z) != side || Mathf.Abs(alvo.z) < minOff)
+            {
+                alvo.z = minOff * side;
+            }
+
+            return alvo;
+        }
+
+        /// <summary>Resolve a balística de um toque e registra na máquina de estados.</summary>
+        private void LaunchTo(Vector3 alvo, float angle, int playerIndex, string msg)
+        {
+            if (BallPhysics.SolveLaunch(Ball.Position, alvo, angle, 1f / 60f, out Vector3 v))
+            {
+                Ball = new BallState(Ball.Position, v);
+                Rally.OnTouch(playerIndex, Players[playerIndex].Side);
+                OnLog?.Invoke($"{msg} [toque {Rally.TouchCount}/3]");
+            } else
+            {
+                OnLog?.Invoke($"solver falhou: de y={Ball.Position.y:F2} para {alvo}");
+            }
+        }
+
+        private Vector2 RandomInCircle(float radius)
+        {
+            double ang = _rng.NextDouble() * System.Math.PI * 2.0;
+            double r = radius * System.Math.Sqrt(_rng.NextDouble());
+            return new Vector2((float)(r * System.Math.Cos(ang)), (float)(r * System.Math.Sin(ang)));
+        }
+
+        // ================= detecção =================
         private bool DetectNetCrossing()
         {
             float z0 = _prev.Position.z;
@@ -145,7 +367,7 @@ namespace Volley.Sim
             }
 
             Rally.OnNetCrossed(Court.SideOf(z1));
-            OnLog?.Invoke($"cruzou a rede a {cross.y:F2} m -> posse do lado {SideName(Rally.TouchingSide)}");
+            OnLog?.Invoke($"cruzou a rede a {cross.y:F2} m -> " + $"posse do lado {SideName(Rally.TouchingSide)}");
             return false;
         }
 
@@ -156,7 +378,6 @@ namespace Volley.Sim
                 EndRally(-Rally.LastTouchSide, "bateu no teto");
                 return true;
             }
-
             return false;
         }
 
@@ -165,66 +386,50 @@ namespace Volley.Sim
             float y0 = _prev.Position.y;
             float y1 = Ball.Position.y;
 
-            bool crossed = y0 > Court.BallRadius && y1 <= Court.BallRadius;
-            if (!crossed) return false;
+            if (!(y0 > Court.BallRadius && y1 <= Court.BallRadius)) return false;
 
             float denom = y0 - y1;
             float f = denom > 1e-6f ? (y0 - Court.BallRadius) / denom : 0f;
             Vector3 p = Vector3.Lerp(_prev.Position, Ball.Position, f);
 
             if (Court.IsInBounds(p))
-                EndRally(-Court.SideOf(p.z), $"quicou no lado {SideName(Court.SideOf(p.z))} em x={p.x:F2} z={p.z:F2}");
+                EndRally(-Court.SideOf(p.z), $"quicou no lado {SideName(Court.SideOf(p.z))} " + $"em x={p.x:F2} z={p.z:F2}");
             else
                 EndRally(-Rally.LastTouchSide, $"fora em x={p.x:F2} z={p.z:F2}");
 
             return true;
         }
 
-        // ----- resolução -----
         private void EndRally(int winnerSide, string reason)
         {
-            BallLive = false;
+            BallLive      = false;
             HasPrediction = false;
             Rally.AwardPoint(winnerSide, reason);
 
-            OnLog?.Invoke($"PONTO {SideName(winnerSide)} - {reason} | A {Rally.ScoreA} x {Rally.ScoreB} B");
+            OnLog?.Invoke($"PONTO {SideName(winnerSide)} — {reason}   |   " + $"A {Rally.ScoreA} x {Rally.ScoreB} B");
         }
 
         private static string SideName(int side) => side == Court.SideA ? "A" : "B";
-
-        /// <summary>Ponto uniforme num disco. O sqrt evita amontoar tudo no centro.</summary>
-        private Vector2 RandomInCircle(float radius)
+        private void SetupTeam(int side)
         {
-            double ang = _rng.NextDouble() * System.Math.PI * 2.0;
-            double r = radius * System.Math.Sqrt(_rng.NextDouble());
-            return new Vector2((float)(r * System.Math.Cos(ang)), (float)(r * System.Math.Sin(ang)));
-        }
+            int b = TeamBase(side);
 
-        private void ResolveTouch()
-        {
-            TouchArmed = false;
+            Vector3 baseP = new Vector3( 0.0f, 0f, 5.0f * side);
+            Vector3 baseL = new Vector3( 1.5f, 0f, 2.0f * side);
+            Vector3 baseA = new Vector3(-3.0f, 0f, 3.5f * side);
 
-            Vector2 flat = new Vector2(Ball.Position.x - Receiver.Position.x, Ball.Position.z - Receiver.Position.z);
+            Players[b + 0] = new PlayerState { Id = b + 0, Side = side, Role = PlayerRole.Passador,   Position = baseP, Base = baseP };
+            Players[b + 1] = new PlayerState { Id = b + 1, Side = side, Role = PlayerRole.Levantador, Position = baseL, Base = baseL };
+            Players[b + 2] = new PlayerState { Id = b + 2, Side = side, Role = PlayerRole.Atacante,   Position = baseA, Base = baseA };
 
-            if (flat.magnitude > ReceiverAttr.Reach)
+            for (int k = 0; k < 3; k++)
             {
-                OnLog?.Invoke($"não chegou a tempo - {flat.magnitude:F2} m da bola");
-                return;
+                Attrs[b + k]   = PlayerAttributes.Default;
+                IsHuman[b + k] = (side == HumanSide);
             }
 
-            Vector2 desvio = RandomInCircle(MaxPassError * (1f - ArmedQuality));
-            Vector3 alvo = SetterSpot + new Vector3(desvio.x, 0f, desvio.y);
-
-            if (BallPhysics.SolveLaunch(Ball.Position, alvo, 65f, 1f / 60f, out Vector3 v))
-            {
-                Ball = new BallState(Ball.Position, v);
-                Rally.OnTouch(Receiver.Id, Receiver.Side);
-
-                OnLog?.Invoke($"passe -> {desvio.magnitude:F2} m do levantador");
-            } else
-            {
-                OnLog?.Invoke($"solver falhou no passe: de y={Ball.Position.y:F2} " + $"para {alvo} - bola perdida");
-            }
+            Attrs[b + 2].ReachHeight = 3.2f;
         }
     }
+
 }
