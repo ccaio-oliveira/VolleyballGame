@@ -308,9 +308,10 @@
   <div class="rp-now">
     <div class="rp-now-label">Onde estamos</div>
     <div class="rp-now-body">
-      <strong>M0 — Rally sim.</strong> Estrutura de pastas criada, arquivos vazios.
-      Próximo: <code class="rp-c">BallState</code>, <code class="rp-c">BallPhysics.Step()</code>
-      e a predição do ponto de queda.
+      <strong>M0 fechado.</strong> Física validada, predição travada, máquina de estados
+      julgando as cinco faltas, quatro testes verdes.
+      Agora <strong>M1</strong>, abrindo pela balística inversa:
+      <code class="rp-c">SolveServe()</code> — você diz onde a bola cai, o código acha a velocidade.
     </div>
   </div>
 
@@ -528,16 +529,16 @@ trajetória = alvo_ideal + erro · (1 − qualidade)</pre>
 
     <div class="rp-card rp-pad">
       <div class="rp-ms">
-        <div class="rp-ms-row" data-state="now">
+        <div class="rp-ms-row" data-state="done">
           <div class="rp-ms-id">M0</div>
           <div class="rp-ms-t">Rally sim</div>
-          <span class="rp-chip">em andamento</span>
+          <span class="rp-chip">concluído</span>
           <div class="rp-ms-d">Bola com física própria, quadra, máquina de estados, predição de queda. Sem arte. Prova que a bola se comporta como bola de vôlei.</div>
         </div>
-        <div class="rp-ms-row" data-state="next">
+        <div class="rp-ms-row" data-state="now">
           <div class="rp-ms-id">M1</div>
           <div class="rp-ms-t">Controle e timing</div>
-          <span class="rp-chip">planejado</span>
+          <span class="rp-chip">em andamento</span>
           <div class="rp-ms-d">Um jogador controlável, janela de timing no toque, câmera. Prova que é <em>gostoso</em> de jogar.</div>
         </div>
         <div class="rp-ms-row">
@@ -577,19 +578,19 @@ trajetória = alvo_ideal + erro · (1 − qualidade)</pre>
   <!-- ============ M0 DoD ============ -->
   <section class="rp-sec">
     <div>
-      <div class="rp-eyebrow">Milestone atual</div>
+      <div class="rp-eyebrow">Concluído · 19.08.2026</div>
       <h2>M0 — critério de pronto</h2>
     </div>
-    <p>Só isto, e nada além. Cenário é um plano cinza e um cubo esticado fazendo de rede.</p>
+    <p>Saque de referência aferido: sai a <strong>2.70 m</strong> e 18 m/s a 12°, cruza a rede a <strong>2.88 m</strong> e quica em <strong>z = 6.45</strong>. O arrasto encurta o alcance em 25% contra o vácuo.</p>
     <div class="rp-card rp-pad">
       <ul class="rp-check">
-        <li><code class="rp-c">Fixed Timestep</code> em <code class="rp-c">0.0166667</code> nas Project Settings</li>
-        <li><code class="rp-c">GameRoot</code> chama <code class="rp-c">sim.Tick(dt)</code> no <code class="rp-c">FixedUpdate</code></li>
-        <li>Espaço saca: a bola sai de um ponto com velocidade inicial e voa</li>
-        <li>Uma esfera segue <code class="rp-c">sim.Ball.Position</code> — a <code class="rp-c">BallView</code> só atribui <code class="rp-c">transform.position</code></li>
-        <li>Cilindro achatado no chão marca o ponto de queda previsto, atualizado todo frame</li>
-        <li>Toque no chão imprime <code class="rp-c">PONTO — Time A</code> ou <code class="rp-c">FORA</code></li>
-        <li>Teste unitário: saque de (4.5, 2.0, 8.0) a 18 m/s e 12° cai dentro da quadra adversária</li>
+        <li data-done><code class="rp-c">Fixed Timestep</code> em <code class="rp-c">0.0166667</code> nas Project Settings</li>
+        <li data-done><code class="rp-c">GameRoot</code> chama <code class="rp-c">sim.Tick(dt)</code> no <code class="rp-c">FixedUpdate</code></li>
+        <li data-done>Espaço saca: a bola sai de um ponto com velocidade inicial e voa</li>
+        <li data-done>Uma esfera segue <code class="rp-c">sim.Ball.Position</code> — a <code class="rp-c">BallView</code> só atribui <code class="rp-c">transform.position</code></li>
+        <li data-done>Cilindro achatado no chão marca o ponto de queda previsto, atualizado todo frame</li>
+        <li data-done>Toque no chão imprime <code class="rp-c">PONTO — Time A</code> ou <code class="rp-c">FORA</code></li>
+        <li data-done>Teste unitário: saque de (4.5, 2.0, 8.0) a 18 m/s e 12° cai dentro da quadra adversária</li>
       </ul>
     </div>
   </section>
