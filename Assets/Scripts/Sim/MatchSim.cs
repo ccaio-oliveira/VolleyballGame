@@ -56,13 +56,13 @@ namespace Volley.Sim
 
             if (cross.y < NetHeight)
             {
-                EndRally(-Rally.TouchingSide, $"na rede (y={cross.y:F2})");
+                EndRally(-Rally.LastTouchSide, $"na rede (y={cross.y:F2})");
                 return true;
             }
 
             if (Mathf.Abs(cross.x) > Court.HalfWidth)
             {
-                EndRally(-Rally.TouchingSide, $"fora das antenas (x={cross.x:F2})");
+                EndRally(-Rally.LastTouchSide, $"fora das antenas (x={cross.x:F2})");
                 return true;
             }
 
@@ -75,7 +75,7 @@ namespace Volley.Sim
         {
             if (_prev.Position.y < Court.Ceiling && Ball.Position.y >= Court.Ceiling)
             {
-                EndRally(-Rally.TouchingSide, "bateu no teto");
+                EndRally(-Rally.LastTouchSide, "bateu no teto");
                 return true;
             }
 
@@ -95,9 +95,9 @@ namespace Volley.Sim
             Vector3 p = Vector3.Lerp(_prev.Position, Ball.Position, f);
 
             if (Court.IsInBounds(p))
-                EndRally(-Court.SideOf(p.z), $"dentro em x={p.x:F2} z={p.z:F2}");
+                EndRally(-Court.SideOf(p.z), $"quicou no lado {SideName(Court.SideOf(p.z))} em x={p.x:F2} z={p.z:F2}");
             else
-                EndRally(-Rally.TouchingSide, $"fora em x={p.x:F2} z={p.z:F2}");
+                EndRally(-Rally.LastTouchSide, $"fora em x={p.x:F2} z={p.z:F2}");
 
             return true;
         }
