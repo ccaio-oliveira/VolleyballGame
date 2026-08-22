@@ -58,32 +58,39 @@ namespace Volley.Sim
             get
             {
                 int b = TeamBase(Rally.TouchingSide);
-                if (Rally.TouchCount == 0) return ClosestTo(b, PredictedLanding);
 
-                return b + Mathf.Clamp(Rally.TouchCount, 1, 2);
+                if (Rally.TouchCount == 0) return ClosestTo(b, ContactPoint, Rally.LastToucher);
+
+                int titular = b + Mathf.Clamp(Rally.TouchCount, 1, 2);
+                if (titular != Rally.LastToucher) return titular;
+
+                return ClosestTo(b, ContactPoint, Rally.LastToucher);
             }
         }
 
-        private int ClosestTo(int b, Vector3 p)
+        private int ClosestTo(int b, Vector3 p, int exclude = -1)
         {
-            int best = b;
+            int best = -1;
             float bestD = float.MaxValue;
 
             for (int k = 0; k < 3; k++)
             {
+                int idx = b + k;
+                if (idx == exclude) continue;
+
                 float d = Vector2.Distance(
-                    new Vector2(Players[b + k].Position.x, Players[b + k].Position.z),
+                    new Vector2(Players[idx].Position.x, Players[idx].Position.z),
                     new Vector2(p.x, p.z)
                 );
 
                 if (d < bestD)
                 {
                     bestD = d;
-                    best = b + k;
+                    best = idx;
                 }
             }
 
-            return best;
+            return best < 0 ? b : best;
         }
 
         /// <summary>Manchete na cintura, levantamento acima da cabeça.</summary>
@@ -265,7 +272,7 @@ namespace Volley.Sim
 
             if (flat.magnitude > Attrs[i].Reach)
             {
-                OnLog?.Invoke($"[{Players[i].Role}] não alcançou - {flat.magnitude:F2} m");
+                OnLog?.Invoke($"[#{i} {Players[i].Role}] não alcançou - {flat.magnitude:F2} m");
                 return;
             }
 
@@ -425,7 +432,7 @@ namespace Volley.Sim
             for (int k = 0; k < 3; k++)
             {
                 Attrs[b + k]   = PlayerAttributes.Default;
-                IsHuman[b + k] = (side == HumanSide);
+                IsHuman[b + k] = (side == HumanSide) && k != 1;
             }
 
             Attrs[b + 2].ReachHeight = 3.2f;

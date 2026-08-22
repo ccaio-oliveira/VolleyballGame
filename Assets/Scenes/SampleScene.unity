@@ -1389,8 +1389,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b5e46ed4447444d49b57e9298e0a8055, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Volley.View.ControlIndicatorView
-  root: {fileID: 0}
-  ring: {fileID: 0}
+  root: {fileID: 850650621}
+  ring: {fileID: 1467012956}
 --- !u!136 &1467012955
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -1439,7 +1439,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: d4e9e06b41f284f6186fa67cba331dfb, type: 2}
+  - {fileID: 2100000, guid: cc6b57a3a8a0a459db1bd865f8515af0, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
