@@ -9,6 +9,12 @@ namespace Volley.View
         [SerializeField] private int index;
         [SerializeField] private Renderer box;
 
+        public void Bind(GameRoot r, int i)
+        {
+            root = r;
+            index = i;
+        }
+
         private void Update()
         {
             if (root == null) return;
@@ -23,6 +29,14 @@ namespace Volley.View
 
             transform.position = new Vector3(sim.Players[index].Position.x, (topo + baixo) * 0.5f, 0.08f * sim.Players[index].Side);
             transform.localScale = new Vector3(sim.BlockHalfWidth * 2f, topo - baixo, 0.12f);
+        }
+
+        private void Awake()
+        {
+            if (box == null)
+            {
+                box = GetComponent<Renderer>();
+            }
         }
     }
 }

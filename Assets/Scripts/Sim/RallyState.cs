@@ -16,6 +16,7 @@ namespace Volley.Sim
         public int ScoreA;
         public int ScoreB;
         public string LastReason = "";
+        public bool ServeInFlight;
 
         public void BeginServe(int side)
         {
@@ -24,6 +25,7 @@ namespace Volley.Sim
             TouchCount = 0;
             LastToucher = -1;
             LastTouchSide = side;
+            ServeInFlight = true;
         }
 
         public void OnNetCrossed(int newSide)
@@ -39,6 +41,7 @@ namespace Volley.Sim
             TouchCount++;
             LastToucher = playerId;
             LastTouchSide = side;
+            ServeInFlight = false;
             return TouchCount > 3;
         }
 

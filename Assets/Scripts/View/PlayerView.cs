@@ -9,6 +9,12 @@ namespace Volley.View
         [SerializeField] private int index;
         [SerializeField] private float jumpHeight = 0.55f;
 
+        public void Bind(GameRoot r, int i)
+        {
+            root = r;
+            index = i;
+        }
+
         private void Update()
         {
             if (root == null) return;
@@ -22,6 +28,8 @@ namespace Volley.View
                 float t = 1f - (bt / sim.BlockDuration);
                 p.y += 4f * jumpHeight * t * (1f - t);
             }
+
+            Debug.DrawLine(p, sim.Players[index].Base + Vector3.up * 0.1f, Color.yellow);
 
             transform.position = p + Vector3.up * 0.95f;
         }

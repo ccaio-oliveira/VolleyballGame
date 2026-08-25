@@ -308,11 +308,10 @@
   <div class="rp-now">
     <div class="rp-now-label">Onde estamos</div>
     <div class="rp-now-body">
-      <strong>M0 e M1 fechados.</strong> Balística inversa, jogador controlável no stick,
-      janela de timing de ±0.05 s e a cadeia <em>timing → qualidade → erro de trajetória</em>
-      funcionando ponta a ponta.
-      Agora <strong>M2</strong>, pelo <strong>levantador</strong> — quando o contador de três
-      toques finalmente conta.
+      <strong>M0, M1 e M2 fechados.</strong> Rally completo 6×6 com rodízio, cinco funções,
+      posições por fase, bloqueio com caixa de mãos e IA que mira o buraco na parede.
+      Agora <strong>M3</strong> — placar, sets e faltas: o que transforma o rally em
+      <em>partida</em>.
     </div>
   </div>
 
@@ -554,16 +553,16 @@ trajetória = alvo_ideal + erro · (1 − qualidade)</pre>
           <span class="rp-chip">concluído</span>
           <div class="rp-ms-d">Um jogador controlável, janela de timing no toque, câmera. Prova que é <em>gostoso</em> de jogar.</div>
         </div>
-        <div class="rp-ms-row" data-state="now">
+        <div class="rp-ms-row" data-state="done">
           <div class="rp-ms-id">M2</div>
           <div class="rp-ms-t">Seis contra seis</div>
-          <span class="rp-chip">em andamento</span>
+          <span class="rp-chip">concluído</span>
           <div class="rp-ms-d">Time completo, rodízio, IA de cobertura e leitura de bola. Prova que parece vôlei de verdade.</div>
         </div>
-        <div class="rp-ms-row">
+        <div class="rp-ms-row" data-state="now">
           <div class="rp-ms-id">M3</div>
           <div class="rp-ms-t">Regras completas</div>
-          <span class="rp-chip">planejado</span>
+          <span class="rp-chip">em andamento</span>
           <div class="rp-ms-d">Rally point, cinco sets, faltas: quatro toques, toque duplo, invasão, condução. Prova que é um jogo, não um brinquedo.</div>
         </div>
         <div class="rp-ms-row">
@@ -632,6 +631,64 @@ trajetória = alvo_ideal + erro · (1 − qualidade)</pre>
         <p><code class="rp-c">static BallState Step(BallState s, float dt)</code>. Euler semi-implícito: velocidade antes da posição. Na ordem inversa o integrador acumula energia e a bola sobe sozinha com o tempo.</p>
       </div>
     </div>
+  </section>
+
+
+  <!-- ============ FUNÇÕES E FASES ============ -->
+  <section class="rp-sec">
+    <div>
+      <div class="rp-eyebrow">Referência 06</div>
+      <h2>Funções, rodízio e fases</h2>
+    </div>
+    <p>
+      Sistema <strong>5×1</strong>: um levantador, um oposto na diagonal dele, dois ponteiros
+      e dois centrais em diagonal. A <strong>zona</strong> vem do rodízio; a
+      <strong>função</strong> é permanente; a <strong>posição real</strong> é a combinação
+      das duas com a fase da jogada.
+    </p>
+    <p class="rp-quote">
+      A ordem de rodízio só vale no instante do contato do saque. Depois disso a
+      movimentação é livre — é por isso que o levantador infiltra do fundo para a rede.
+    </p>
+
+    <div class="rp-card rp-pad">
+      <pre class="rp-pre">        R E D E
+   <b>4</b>   |   <b>3</b>   |   <b>2</b>     <i>frente — bloqueiam e atacam</i>
+   <b>5</b>   |   <b>6</b>   |   <b>1</b>     <i>fundo — defendem; zona 1 saca</i>
+
+rodízio: <b>1 → 6 → 5 → 4 → 3 → 2 → 1</b>   <i>só quem recebia e ganhou o ponto</i>
+
+escalação 5×1 por slot:
+   0 <b>Levantador</b>   3 <b>Oposto</b>      <i>diagonais</i>
+   1 <b>Ponteiro</b>     4 <b>Ponteiro</b>
+   2 <b>Central</b>      5 <b>Central</b></pre>
+    </div>
+
+    <div class="rp-tablewrap">
+      <table class="rp-t">
+        <thead>
+          <tr><th>Papel</th><th>Saque / Defesa</th><th>Recepção</th><th>Ataque</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Levantador · frente</td><td>bloqueia zona 2</td><td>infiltra p/ rede</td><td>alvo do passe</td></tr>
+          <tr><td>Levantador · fundo</td><td>defende zona 1</td><td>infiltra p/ rede</td><td>alvo do passe</td></tr>
+          <tr><td>Central · frente</td><td>bloqueia zona 3</td><td>rede, centro</td><td>bola rápida</td></tr>
+          <tr><td>Central · fundo <em>(líbero)</em></td><td>defende zona 6</td><td>recebe, centro</td><td>cobertura</td></tr>
+          <tr><td>Oposto · frente</td><td>bloqueia zona 2</td><td>rede, zona 2</td><td>aproximação zona 2</td></tr>
+          <tr><td>Oposto · fundo</td><td>defende zona 1</td><td>atrás dos 3 m</td><td>ataque de fundo</td></tr>
+          <tr><td>Ponteiro · frente</td><td>bloqueia zona 4</td><td>recebe</td><td>aproximação zona 4</td></tr>
+          <tr><td>Ponteiro · fundo</td><td>defende zona 5</td><td>recebe</td><td>pipe</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      <strong>Levantador no fundo</strong> é a rotação mais ofensiva: três atacantes na rede
+      mais o pipe. <strong>Levantador na frente</strong> deixa só dois atacantes — é onde o
+      técnico faz a <em>inversão</em> (dois por três) para recuperar o terceiro.
+      Adiado: líbero como jogador próprio, ataque de fundo e inversão dependem de elenco
+      com reservas — M6.
+    </p>
   </section>
 
   <footer class="rp-foot">

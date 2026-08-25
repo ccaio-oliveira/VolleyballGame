@@ -20,11 +20,11 @@ namespace Volley.Sim
         public float ArmedQuality;
 
         // ---------- elenco ----------
-        public PlayerState[] Players = new PlayerState[6];
-        public PlayerAttributes[] Attrs = new PlayerAttributes[6];
-        public bool[] IsHuman = new bool[6];
+        public PlayerState[] Players = new PlayerState[12];
+        public PlayerAttributes[] Attrs = new PlayerAttributes[12];
+        public bool[] IsHuman = new bool[12];
+        public int[] Rotation = new int[2];
         public int HumanSide = Court.SideB;
-        public float SpikeX = 2.0f;
         public float SpikeDepth = 5.0f;
         public float MaxSpikeError = 3.0f;
         public float MaxDisplacement = 3.0f;
@@ -56,7 +56,10 @@ namespace Volley.Sim
         public float BlockZone = 1.2f;
         public float BlockHandSpan = 0.75f;
 
-        private static int TeamBase(int side) => side == Court.SideA ? 0 : 3;
+        public float SpikeAimRange = 3.6f;
+        private Vector2 _armedAim;
+        private static int TeamBase(int side) => side == Court.SideA ? 0 : 6;
+        private static int TeamIdx(int side) => side == Court.SideA ? 0 : 1;
 
         /// <summary>
         /// Quem joga a próxima bola: no 1º toque quem estiver mais perto de onde a bola vai cair; depois o levantador e o atacante do time.
@@ -69,22 +72,39 @@ namespace Volley.Sim
 
                 if (Rally.TouchCount == 0) return ClosestTo(b, ContactPoint, Rally.LastToucher);
 
-                int titular = b + Mathf.Clamp(Rally.TouchCount, 1, 2);
-                if (titular != Rally.LastToucher) return titular;
+                if (Rally.TouchCount == 1)
+                {
+                    int lev = FindRole(b, PlayerRole.Levantador);
 
-                return ClosestTo(b, ContactPoint, Rally.LastToucher);
+                    if (lev >= 0 && lev != Rally.LastToucher) return lev;
+                    
+                    return ClosestTo(b, ContactPoint, Rally.LastToucher);
+                }
+
+                return ClosestTo(b, ContactPoint, Rally.LastToucher, true);
             }
         }
 
-        private int ClosestTo(int b, Vector3 p, int exclude = -1)
+        private int FindRole(int b, PlayerRole r)
+        {
+            for (int k = 0; k < 6; k++)
+            {
+                if (Players[b + k].Role == r) return b + k;
+            }
+
+            return -1;
+        }
+
+        private int ClosestTo(int b, Vector3 p, int exclude = -1, bool frontOnly = false)
         {
             int best = -1;
             float bestD = float.MaxValue;
 
-            for (int k = 0; k < 3; k++)
+            for (int k = 0; k < 6; k++)
             {
                 int idx = b + k;
                 if (idx == exclude) continue;
+                if (frontOnly && !IsFront(idx)) continue;
 
                 float d = Vector2.Distance(
                     new Vector2(Players[idx].Position.x, Players[idx].Position.z),
@@ -98,7 +118,31 @@ namespace Volley.Sim
                 }
             }
 
+            if (best < 0 && frontOnly) return ClosestTo(b, p, exclude, false);
+
             return best < 0 ? b : best;
+        }
+
+        private int FrontClosestToX(int b, float x)
+        {
+            int best = -1;
+            float bestD = float.MaxValue;
+
+            for (int k = 0; k < 6; k++)
+            {
+                int i = b + k;
+                if (!IsFront(i)) continue;
+
+                float d = Mathf.Abs(Players[i].Position.x - x);
+
+                if (d < bestD)
+                {
+                    bestD = d;
+                    best = i;
+                }
+            }
+
+            return best;
         }
 
         /// <summary>Manchete na cintura, levantamento acima da cabeça.</summary>
@@ -132,9 +176,60 @@ namespace Volley.Sim
             _controlled = (Rally.TouchingSide == HumanSide) ? ActiveIndex : ClosestTo(TeamBase(HumanSide), PredictedLanding);
         }
 
-        private static Vector3 SetterSpotOf(int side) => new Vector3(1.5f, 2.10f, 2.0f * side);
-        private static Vector3 AttackSpotOf(int side) => new Vector3(-3.0f, 3.00f, 1.2f * side);
+        private static Vector3 SetterSpotOf(int side){
+            Vector3 h = SetterHome(side);
+            return new Vector3(h.x, 2.10f, h.z);
+        }
+        private static Vector3 AttackSpotOf(int side){
+            Vector3 z4 = ZonePos(4, side);
+            return new Vector3(z4.x, 3.00f, 1.2f * side);
+        }
 
+        private static readonly int[] RotOrder = { 1, 6, 5, 4, 3, 2 };
+
+        // (x, z) das zonas 1...6 vistas do lado B; o lado A espelha os dois eixos
+        private static readonly Vector2[] ZoneXZ =
+        {
+            new Vector2(-3.0f, 6.5f), // 1 fundo direita
+            new Vector2(-3.0f, 2.0f), // 2 frente direita
+            new Vector2(0.0f, 2.0f), // 3 frente centro
+            new Vector2(3.0f, 2.0f), // 4 frente esquerda
+            new Vector2(3.0f, 6.5f), // 5 fundo esquerda
+            new Vector2(0.0f, 6.5f), // 6 fundo centro
+        };
+
+        /// <summary>Onde o levantador joga: entre as zonas 2 e 3, colado na rede.</summary>
+        private static Vector3 SetterHome(int side) => new Vector3(-1.5f * side, 0f, 1.6f * side);
+
+        public enum TeamPhase { Saque, Recepcao, Ataque, Defesa }
+
+        public TeamPhase PhaseOf(int side)
+        {
+            if (Rally.ServeInFlight)
+            {
+                return (Rally.ServingSide == side) ? TeamPhase.Saque : TeamPhase.Recepcao;
+            }
+
+            return (Rally.TouchingSide == side) ? TeamPhase.Ataque : TeamPhase.Defesa;
+        }
+
+        /// <summary>
+        /// Aproximação do líbero: um central que rodizia para o fundo joga como líbero.
+        /// A substituição de verdade precisa de elenco com reservas - M6.
+        /// </summary>
+        public PlayerRole EffectiveRole(int i) => (Players[i].Role == PlayerRole.Central && !IsFront(i)) ? PlayerRole.Libero : Players[i].Role;
+
+        private static bool Recebe(PlayerRole r) => r == PlayerRole.Ponteiro || r == PlayerRole.Libero;
+
+        private static readonly PlayerRole[] SlotRole =
+        {
+            PlayerRole.Levantador,   // 0  ─┐ diagonal
+            PlayerRole.Ponteiro,     // 1  ─┼─┐
+            PlayerRole.Central,      // 2  ─┼─┼─┐
+            PlayerRole.Oposto,       // 3  ─┘ │ │
+            PlayerRole.Ponteiro,     // 4  ───┘ │
+            PlayerRole.Central,      // 5  ─────┘
+        };
 
         // ================= saque =================
         public void Serve(Vector3 from, Vector3 velocity)
@@ -210,11 +305,22 @@ namespace Volley.Sim
             if (DetectGround()) return;
         }
 
+        /// <summary>
+        /// Quem deste lado vai jogar a próxima bola - inclusive quando a posse ainda é do 
+        /// adversário mas a bola já vem pra ca. Sem isso a IA só reage depois da travessia
+        /// e chega sempre atrasada
+        /// </summary>
+        private int ResponsavelDoLado(int side)
+        {
+            if (Rally.TouchingSide == side) return ActiveIndex;
+
+            if (HasPrediction && Court.SideOf(PredictedLanding.z) == side) return ClosestTo(TeamBase(side), PredictedLanding);
+
+            return -1;
+        }
+
         private void StepPlayers(float dt)
         {
-            int ativo = ActiveIndex;
-            int controlado = ControlledIndex;
-
             for (int i = 0; i < Players.Length; i++)
             {
                 if (Players[i].BlockTimer > 0f)
@@ -225,39 +331,55 @@ namespace Volley.Sim
                 UpdateAiBlock();
             }
 
+            int controlado = ControlledIndex;
+            int respA = ResponsavelDoLado(Court.SideA);
+            int respB = ResponsavelDoLado(Court.SideB);
+
             for (int i = 0; i < Players.Length; i++)
             {
-                bool ownSide = Court.SideOf(ContactPoint.z) == Players[i].Side;
+                int side = Players[i].Side;
+
+                Players[i].Base = HomeFor(i);
 
                 if (Players[i].BlockTimer > 0f)
                 {
                     Players[i].Velocity = Vector3.zero;
                     continue;
                 }
+                
+                bool defendeRede = !IsHuman[i] && HasNetCross && IsFront(i) && !Rally.ServeInFlight && EffectiveRole(i) != PlayerRole.Libero && Court.SideOf(Ball.Position.z) == -side;
 
-                bool naRede = !IsHuman[i] && HasNetCross && Court.SideOf(Ball.Position.z) == -Players[i].Side && i == TeamBase(Players[i].Side) + 2;
-
-                if (naRede)
+                if (defendeRede)
                 {
-                    int atk = -Players[i].Side;
-
-                    // fase 1: antes do ataque, posta-se onde o levantamento vai cair
-                    // fase 2: ataque no ar e vindo por cima da fita, desliza pro ponto real
-                    float alvoX = (Rally.TouchCount >= 2 && HasNetCross && NetCrossPoint.y > NetHeight)
-                    ? NetCrossPoint.x
+                    int atk = -side;
+                    
+                    float alvoX = (Rally.TouchCount >= 2 && NetCrossPoint.y > NetHeight)
+                    ? NetCrossPoint.x 
                     : AttackSpotOf(atk).x;
 
-                    Vector3 posto = new Vector3(alvoX, 0f, 0.8f * Players[i].Side);
+                    int perto = FrontClosestToX(TeamBase(side), alvoX);
+
+                    // o mais próximo vai no ponto; os outros fecham ao lado, formando parede
+                    float x = (i == perto) ? alvoX : Mathf.Lerp(Players[i].Base.x, alvoX, 0.4f);
+
+                    Vector3 posto = new Vector3(x, 0f, 0.8f * Players[i].Side);
+                    
                     Players[i] = PlayerPhysics.StepToTarget(Players[i], Attrs[i], posto, dt);
+                    
                     continue;
                 }
+
+                int resp = (side == Court.SideA) ? respA : respB;
+                bool temPosse = (Rally.TouchingSide == side);
+                Vector3 alvoBola = temPosse ? ContactPoint : PredictedLanding;
+                bool vemPraCa = Court.SideOf(alvoBola.z) == side && (temPosse ? HasContact : HasPrediction);
 
                 if (i == controlado && IsHuman[i])
                 {
                     Players[i] = PlayerPhysics.StepDirect(Players[i], Attrs[i], MoveInput, dt);
-                } else if (i == ativo && HasContact && ownSide)
+                } else if (i == resp && vemPraCa)
                 {
-                    Players[i] = PlayerPhysics.StepToTarget(Players[i], Attrs[i], ContactPoint, dt);
+                    Players[i] = PlayerPhysics.StepToTarget(Players[i], Attrs[i], alvoBola, dt);
                 } else
                 {
                     Players[i] = PlayerPhysics.StepToTarget(Players[i], Attrs[i], Players[i].Base, dt);
@@ -287,6 +409,7 @@ namespace Volley.Sim
 
             TouchArmed = true;
             ArmedQuality = q;
+            _armedAim = MoveInput;
 
             OnLog?.Invoke($"{TouchTiming.Label(q)} q={q:F2} " + $"erro={TimeToContact:+0.00;-0.00}s");
         }
@@ -296,6 +419,12 @@ namespace Volley.Sim
             int i = ControlledIndex;
             if (!BallLive || !IsHuman[i]) return;
             if (Players[i].BlockTimer > 0f) return;
+
+            if (Rally.ServeInFlight)
+            {
+                OnLog?.Invoke("não se bloqueia saque");
+                return;
+            }
 
             if (Mathf.Abs(Players[i].Position.z) > BlockZone)
             {
@@ -323,23 +452,28 @@ namespace Volley.Sim
         private void UpdateAiBlock()
         {
             if (!HasNetCross) return;
+            if (NetCrossPoint.y <= NetHeight) return;
+            if (Rally.ServeInFlight) return;
 
             int atkSide = Court.SideOf(Ball.Position.z);
             if (atkSide == 0) return;
 
             int defSide = -atkSide;
             if (defSide == HumanSide) return;
+            if (TimeToNet >= 0.14f) return;
 
-            int i = TeamBase(defSide) + 2;
+            int b = TeamBase(defSide);
 
-            if (
-                Players[i].BlockTimer <= 0f
-                && TimeToNet < 0.14f
-                && NetCrossPoint.y > NetHeight
-                && NetCrossPoint.y < Attrs[i].BlockReach
-                && Mathf.Abs(NetCrossPoint.x - Players[i].Position.x) < BlockHalfWidth + 0.3f
-            )
+            for (int k = 0; k < 6; k++)
             {
+                int i = b + k;
+                
+                if (!IsFront(i)) continue;
+                if (EffectiveRole(i) == PlayerRole.Libero) continue;
+                if (Players[i].BlockTimer > 0f) continue;
+                if (NetCrossPoint.y > Attrs[i].BlockReach) continue;
+                if (Mathf.Abs(NetCrossPoint.x - Players[i].Position.x) > BlockHalfWidth) continue;
+
                 Players[i].BlockTimer = BlockDuration;
                 OnLog?.Invoke($"[#{i}] IA salta");
             }
@@ -379,8 +513,11 @@ namespace Volley.Sim
                     }
                 default:
                     {
+                        Vector2 mira = IsHuman[i] ? _armedAim : AiAim(i);
+                        float baseX = Mathf.Clamp(mira.x * SpikeAimRange, -3.8f, 3.8f);
+
                         Vector2 d = RandomInCircle(MaxSpikeError * (1f - q));
-                        Vector3 alvo = new Vector3(SpikeX + d.x, Court.BallRadius, (-SpikeDepth * side) + d.y);
+                        Vector3 alvo = new Vector3(baseX + d.x, Court.BallRadius, (-SpikeDepth * side) + d.y);
 
                         float folga = Mathf.Lerp(0.60f, 0.10f, q);
 
@@ -389,7 +526,7 @@ namespace Volley.Sim
                             float ang = Mathf.Asin(v.normalized.y) * Mathf.Rad2Deg;
                             Ball = new BallState(Ball.Position, v);
                             Rally.OnTouch(i, side);
-                            OnLog?.Invoke($"ATAQUE q={q:F2} {v.magnitude:F1} m/s a {ang:F0}º" + $" [toque {Rally.TouchCount}/3]");
+                            OnLog?.Invoke($"ATAQUE q={q:F2} {v.magnitude:F1} m/s a {ang:F0}º" + $" alvo x={baseX:F1} [toque {Rally.TouchCount}/3]");
                         } else
                         {
                             OnLog?.Invoke("sem angulo legal pro ataque");
@@ -397,6 +534,36 @@ namespace Volley.Sim
                         break;
                     }
             }
+        }
+
+        /// <summary>A IA procura o buraco entre os bloqueadores adversários.</summary>
+        private Vector2 AiAim(int i)
+        {
+            int opp = -Players[i].Side;
+            int b = TeamBase(opp);
+
+            float melhorX = 0f, melhorD = -1f;
+
+            for (int s = 0; s < 7; s++)
+            {
+                float x = -3.6f + s * 1.2f;
+                float d = float.MaxValue;
+
+                for (int k = 0; k < 6; k++)
+                {
+                    int j = b + k;
+                    if (!IsFront(j)) continue;
+                    d = Mathf.Min(d, Mathf.Abs(Players[j].Position.x - x));
+                }
+
+                if (d > melhorD)
+                {
+                    melhorD = d;
+                    melhorX = x;
+                }
+            }
+
+            return new Vector2(melhorX / SpikeAimRange, 0f);
         }
 
         /// <summary>Levantamento nunca é colocado em cima da rede nem do outro lado.</summary>
@@ -457,7 +624,7 @@ namespace Volley.Sim
             }
 
             int defSide = Court.SideOf(z1);
-            int blocker = FindBlocker(cross, defSide);
+            int blocker = Rally.ServeInFlight ? -1 : FindBlocker(cross, defSide);
 
             if (blocker >= 0)
             {
@@ -503,7 +670,12 @@ namespace Volley.Sim
         {
             BallLive      = false;
             HasPrediction = false;
+            
+            bool viraSaque = (winnerSide != Rally.ServingSide);
+
             Rally.AwardPoint(winnerSide, reason);
+
+            if (viraSaque) Rotate(winnerSide);
 
             OnLog?.Invoke($"PONTO {SideName(winnerSide)} — {reason}   |   " + $"A {Rally.ScoreA} x {Rally.ScoreB} B");
         }
@@ -513,31 +685,42 @@ namespace Volley.Sim
         {
             int b = TeamBase(side);
 
-            Vector3 baseP = new Vector3( 0.0f, 0f, 5.0f * side);
-            Vector3 baseL = new Vector3( 1.5f, 0f, 2.0f * side);
-            Vector3 baseA = new Vector3(-3.0f, 0f, 3.5f * side);
-
-            Players[b + 0] = new PlayerState { Id = b + 0, Side = side, Role = PlayerRole.Passador,   Position = baseP, Base = baseP };
-            Players[b + 1] = new PlayerState { Id = b + 1, Side = side, Role = PlayerRole.Levantador, Position = baseL, Base = baseL };
-            Players[b + 2] = new PlayerState { Id = b + 2, Side = side, Role = PlayerRole.Atacante,   Position = baseA, Base = baseA };
-
-            for (int k = 0; k < 3; k++)
+            for (int k = 0; k < 6; k++)
             {
-                Attrs[b + k]   = PlayerAttributes.Default;
-                IsHuman[b + k] = (side == HumanSide) && k != 1;
+                int i = b + k;
+                Players[i] = new PlayerState
+                {
+                    Id = i,
+                    Side = side,
+                    Slot = k,
+                    Role = SlotRole[k]
+                };
+
+                Attrs[i] = PlayerAttributes.Default;
+                IsHuman[i] = (side == HumanSide);
             }
 
-            Attrs[b + 2].ReachHeight = 3.2f;
+            for (int k = 0; k < 6; k++)
+            {
+                int i = b + k;
+                Vector3 p = ZonePos(ZoneOf(i), side);
+
+                Players[i].Base = HomeFor(i);
+                Players[i].Position = ZonePos(ZoneOf(i), side);
+                Players[i].Velocity = Vector3.zero;
+                Players[i].BlockTimer = 0f;
+            }
         }
 
         private int FindBlocker(Vector3 cross, int defSide)
         {
             int b = TeamBase(defSide);
 
-            for (int k = 0; k < 3; k++)
+            for (int k = 0; k < 6; k++)
             {
                 int i = b + k;
                 if (Players[i].BlockTimer <= 0f) continue;
+                if (!IsFront(i)) continue;
 
                 float topo = Attrs[i].BlockReach;
                 float baixo = Mathf.Max(NetHeight, topo - BlockHandSpan);
@@ -586,6 +769,126 @@ namespace Volley.Sim
 
                 OnLog?.Invoke($"raspão no bloqueio #{i} margem={margem:F2} " + $"lado {SideName(defSide)} com 3 toques");
             }
+        }
+
+        // ============= rodízio ==============
+        public static Vector3 ZonePos(int zone, int side)
+        {
+            Vector2 v = ZoneXZ[zone - 1];
+            return new Vector3(v.x * side, 0f, v.y * side);
+        }
+
+        public int ZoneOf(int i)
+        {
+            int t = TeamIdx(Players[i].Side);
+            return RotOrder[(Players[i].Slot + Rotation[t]) % 6];
+        }
+
+        /// <summary>Zonas 2, 3 e 4 são a linha de frente: só elas bloqueiam.</summary>
+        public bool IsFront(int i)
+        {
+            int z = ZoneOf(i);
+            return z >= 2 && z <= 4;
+        }
+
+        private void Rotate(int side)
+        {
+            int t = TeamIdx(side);
+            Rotation[t] = (Rotation[t] + 1) & 6;
+            OnLog?.Invoke($"rodízio do lado {SideName(side)}");
+        }
+
+        private Vector3 HomeFor(int i)
+        {
+            int side = Players[i].Side;
+            Vector2 p;
+
+            switch (PhaseOf(side))
+            {
+                case TeamPhase.Saque:
+                    {
+                        p = SaqueHome(i);
+                        break;
+                    }
+                case TeamPhase.Recepcao:
+                    {
+                        p = RecepcaoHome(i);
+                        break;
+                    }
+                case TeamPhase.Ataque:
+                    {
+                        p = AtaqueHome(i);
+                        break;
+                    }
+                default:
+                    {
+                        p = DefesaHome(i);
+                        break;
+                    }
+            }
+
+            return new Vector3(p.x * side, 0f, p.y * side);
+        }
+
+        private Vector2 SaqueHome(int i) => ZoneOf(i) == 1 ? new Vector2(-3.0f, 9.6f) : DefesaHome(i);
+
+        private Vector2 RecepcaoHome(int i)
+        {
+            switch (EffectiveRole(i))
+            {
+                case PlayerRole.Levantador: return new Vector2(-1.2f, 1.5f);
+                case PlayerRole.Central: return new Vector2(0.4f, 1.3f);
+                case PlayerRole.Oposto: return IsFront(i) ? new Vector2(-3.3f, 1.6f) : new Vector2(-3.4f, 7.2f);
+                default: return LinhaDeRecepcao(i);
+            }
+        }
+
+        private Vector2 AtaqueHome(int i)
+        {
+            switch (EffectiveRole(i))
+            {
+                case PlayerRole.Levantador: return new Vector2(-1.2f, 1.5f);
+                case PlayerRole.Central: return new Vector2(0.4f, 1.5f);
+                case PlayerRole.Libero: return new Vector2(0.5f, 4.0f);
+                case PlayerRole.Oposto: return IsFront(i) ? new Vector2(-3.4f, 2.2f) : new Vector2(-3.4f, 4.2f);
+                default: return IsFront(i) ? new Vector2(3.6f, 2.6f) : new Vector2(3.2f, 4.4f);
+            }
+        }
+
+        private Vector2 DefesaHome(int i)
+        {
+            int z = ZoneOf(i);
+
+            // linha de frente sobe pra rede pra bloquear - libero nunca bloqueia
+            if (IsFront(i) && EffectiveRole(i) != PlayerRole.Libero)
+            {
+                float x = (z == 4) ? 3.0f : (z == 3) ? 0.0f : -3.0f;
+                return new Vector2(x, 0.9f);
+            }
+
+            if (z == 1) return new Vector2(-3.4f, 6.6f);
+            if (z == 5) return new Vector2(3.4f, 6.6f);
+            if (z == 6) return new Vector2(0.0f, 8.0f); // o 6 cobre o fundo
+
+            return new Vector2(0.0f, 6.5f);
+        }
+
+        private Vector2 LinhaDeRecepcao(int i)
+        {
+            int b = TeamBase(Players[i].Side);
+            int ordem = 0, total = 0;
+
+            for (int k = 0; k < 6; k++)
+            {
+                int j = b + k;
+                if (!Recebe(EffectiveRole(j))) continue;
+                if (j == 1) ordem = total;
+                total++;
+            }
+
+            float x = (total <= 1) ? 0f : Mathf.Lerp(3.4f, -3.4f, ordem / (float)(total -1));
+
+            return new Vector2(x, 6.2f);
         }
     }
 
