@@ -11,13 +11,15 @@ namespace Volley.Sim
         public float Acceleration;
         public float Reach;
         public float ReachHeight;
+        public float BlockReach;
 
         public static PlayerAttributes Default => new PlayerAttributes
         {
             MaxSpeed = 6.5f,
             Acceleration = 25f,
             Reach = 1.0f,
-            ReachHeight =  2.4f
+            ReachHeight =  2.4f,
+            BlockReach = 3.2f
         };
     }
 
@@ -30,5 +32,6 @@ namespace Volley.Sim
         public int Side;
         public PlayerRole Role;
         public Vector3 Base; // posição de formação
+        public float BlockTimer;
     }
 }

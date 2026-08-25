@@ -56,5 +56,13 @@ namespace Volley.Bootstrap
             var gp = Gamepad.current;
             return (kb != null && kb.spaceKey.wasPressedThisFrame) || (gp != null && gp.buttonWest.wasPressedThisFrame);
         }
+
+        public static bool BlockPressed()
+        {
+            var kb = Keyboard.current;
+            var gp = Gamepad.current;
+
+            return (kb != null && kb.jKey.wasPressedThisFrame) || (gp != null && gp.buttonNorth.wasPressedThisFrame);
+        }
     }
 }

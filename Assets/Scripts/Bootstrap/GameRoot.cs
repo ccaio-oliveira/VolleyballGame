@@ -23,6 +23,7 @@ namespace Volley.Bootstrap
 
         private bool _serveRequested;
         private bool _receiveRequested;
+        private bool _blockRequested;
 
         private void Awake()
         {
@@ -44,6 +45,11 @@ namespace Volley.Bootstrap
                 _receiveRequested = true;
             }
 
+            if (InputRouter.BlockPressed())
+            {
+                _blockRequested = true;
+            }
+
             Sim.MoveInput = ScreenToWorld(InputRouter.ReadMove());
         }
 
@@ -59,6 +65,12 @@ namespace Volley.Bootstrap
             {
                 _receiveRequested = false;
                 Sim.TryReceive();
+            }
+
+            if (_blockRequested)
+            {
+                _blockRequested = false;
+                Sim.TryBlock();
             }
 
             Sim.Tick(Time.fixedDeltaTime);

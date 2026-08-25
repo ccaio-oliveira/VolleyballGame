@@ -51,5 +51,12 @@ namespace Volley.Sim
             LastReason = reason;
             Phase = RallyPhase.PointOver;
         }
+
+        /// <summary>Bloqueio: marca quem tocou, mas NÃO consome um dos três toques.</summary>
+        public void OnBlockTouch(int playerId, int side)
+        {
+            LastToucher = playerId;
+            LastTouchSide = side;
+        }
     }
 }

@@ -10,7 +10,7 @@ namespace Volley.Sim
         public const float NetHeightMen = 2.43f;
         public const float NetHeighWomen = 2.24f;
         public const float AttackLine = 3f;
-        public const float Ceiling = 7f;
+        public const float Ceiling = 10f;
         public const float BallRadius = 0.105f;
 
         public const int SideA = -1;

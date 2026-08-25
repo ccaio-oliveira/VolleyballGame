@@ -47,6 +47,14 @@ namespace Volley.Sim
         private int _controlTouch = -1;
         private int _controlSide;
         private readonly System.Random _rng = new System.Random(12345);
+        public Vector3 NetCrossPoint;
+        public float TimeToNet;
+        public bool HasNetCross;
+
+        public float BlockHalfWidth = 0.55f;
+        public float BlockDuration = 0.65f;
+        public float BlockZone = 1.2f;
+        public float BlockHandSpan = 0.75f;
 
         private static int TeamBase(int side) => side == Court.SideA ? 0 : 3;
 
@@ -167,6 +175,7 @@ namespace Volley.Sim
                 ContactPoint = cp;
                 TimeToContact = tc;
                 HasContact = true;
+                HasNetCross = BallPhysics.PredictNetCross(Ball, dt, out NetCrossPoint, out TimeToNet);
             } else
             {
                 TimeToContact -= dt;
@@ -208,7 +217,40 @@ namespace Volley.Sim
 
             for (int i = 0; i < Players.Length; i++)
             {
+                if (Players[i].BlockTimer > 0f)
+                {
+                    Players[i].BlockTimer -= dt;
+                }
+
+                UpdateAiBlock();
+            }
+
+            for (int i = 0; i < Players.Length; i++)
+            {
                 bool ownSide = Court.SideOf(ContactPoint.z) == Players[i].Side;
+
+                if (Players[i].BlockTimer > 0f)
+                {
+                    Players[i].Velocity = Vector3.zero;
+                    continue;
+                }
+
+                bool naRede = !IsHuman[i] && HasNetCross && Court.SideOf(Ball.Position.z) == -Players[i].Side && i == TeamBase(Players[i].Side) + 2;
+
+                if (naRede)
+                {
+                    int atk = -Players[i].Side;
+
+                    // fase 1: antes do ataque, posta-se onde o levantamento vai cair
+                    // fase 2: ataque no ar e vindo por cima da fita, desliza pro ponto real
+                    float alvoX = (Rally.TouchCount >= 2 && HasNetCross && NetCrossPoint.y > NetHeight)
+                    ? NetCrossPoint.x
+                    : AttackSpotOf(atk).x;
+
+                    Vector3 posto = new Vector3(alvoX, 0f, 0.8f * Players[i].Side);
+                    Players[i] = PlayerPhysics.StepToTarget(Players[i], Attrs[i], posto, dt);
+                    continue;
+                }
 
                 if (i == controlado && IsHuman[i])
                 {
@@ -249,6 +291,22 @@ namespace Volley.Sim
             OnLog?.Invoke($"{TouchTiming.Label(q)} q={q:F2} " + $"erro={TimeToContact:+0.00;-0.00}s");
         }
 
+        public void TryBlock()
+        {
+            int i = ControlledIndex;
+            if (!BallLive || !IsHuman[i]) return;
+            if (Players[i].BlockTimer > 0f) return;
+
+            if (Mathf.Abs(Players[i].Position.z) > BlockZone)
+            {
+                OnLog?.Invoke("longe demais da rede pra bloquear");
+                return;
+            }
+
+            Players[i].BlockTimer = BlockDuration;
+            OnLog?.Invoke($"[#{i}] salta");
+        }
+
         /// <summary>
         /// Qualidade da IA: quanto ela foi obrigada a sair da posição.
         /// </summary>
@@ -260,6 +318,31 @@ namespace Volley.Sim
             );
 
             return 1f - Mathf.Clamp01(desloc / MaxDisplacement);
+        }
+
+        private void UpdateAiBlock()
+        {
+            if (!HasNetCross) return;
+
+            int atkSide = Court.SideOf(Ball.Position.z);
+            if (atkSide == 0) return;
+
+            int defSide = -atkSide;
+            if (defSide == HumanSide) return;
+
+            int i = TeamBase(defSide) + 2;
+
+            if (
+                Players[i].BlockTimer <= 0f
+                && TimeToNet < 0.14f
+                && NetCrossPoint.y > NetHeight
+                && NetCrossPoint.y < Attrs[i].BlockReach
+                && Mathf.Abs(NetCrossPoint.x - Players[i].Position.x) < BlockHalfWidth + 0.3f
+            )
+            {
+                Players[i].BlockTimer = BlockDuration;
+                OnLog?.Invoke($"[#{i}] IA salta");
+            }
         }
 
         private void ResolveTouch(int i, float q)
@@ -373,6 +456,15 @@ namespace Volley.Sim
                 return true;
             }
 
+            int defSide = Court.SideOf(z1);
+            int blocker = FindBlocker(cross, defSide);
+
+            if (blocker >= 0)
+            {
+                ApplyBlock(blocker, cross, defSide);
+                return false;
+            }
+
             Rally.OnNetCrossed(Court.SideOf(z1));
             OnLog?.Invoke($"cruzou a rede a {cross.y:F2} m -> " + $"posse do lado {SideName(Rally.TouchingSide)}");
             return false;
@@ -436,6 +528,64 @@ namespace Volley.Sim
             }
 
             Attrs[b + 2].ReachHeight = 3.2f;
+        }
+
+        private int FindBlocker(Vector3 cross, int defSide)
+        {
+            int b = TeamBase(defSide);
+
+            for (int k = 0; k < 3; k++)
+            {
+                int i = b + k;
+                if (Players[i].BlockTimer <= 0f) continue;
+
+                float topo = Attrs[i].BlockReach;
+                float baixo = Mathf.Max(NetHeight, topo - BlockHandSpan);
+
+                if (Mathf.Abs(cross.x - Players[i].Position.x) <= BlockHalfWidth && cross.y >= baixo && cross.y <= topo)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private void ApplyBlock(int i, Vector3 cross, int defSide)
+        {
+            int atkSide = -defSide;
+
+            // margem 1 = bola passou rente à fita, mãos muito acima -> murro
+            // margem 0 = bola passou no topo do alcance -> raspão
+            float margem = (Attrs[i].BlockReach - cross.y) / BlockHandSpan;
+
+            Rally.OnBlockTouch(i, defSide);
+
+            float speed = Ball.Velocity.magnitude;
+            Vector3 pos = cross;
+
+            if (margem > 0.55f)
+            {
+                // BLOQUEIO: desce cravado do lado de quem atacou
+                pos.z = 0.05f * atkSide;
+                Vector3 v = new Vector3(Ball.Velocity.x * 0.25f, -speed * 0.30f, -Ball.Velocity.z * 0.28f);
+
+                Ball = new BallState(pos, v);
+                Rally.OnNetCrossed(atkSide);
+
+                OnLog?.Invoke($"BLOQUEIO #{i} margem={margem:F2} " + $"a bola volta pro lado {SideName(atkSide)}");
+            } else
+            {
+                // RASPÃO: passa, mas lenta e alta - vira bola defensável
+                pos.z = 0.05f * defSide;
+                Vector3 v = Ball.Velocity * 0.42f;
+                v.y = Mathf.Abs(v.y) + 1.6f;
+
+                Ball = new BallState(pos, v);
+                Rally.OnNetCrossed(defSide);
+
+                OnLog?.Invoke($"raspão no bloqueio #{i} margem={margem:F2} " + $"lado {SideName(defSide)} com 3 toques");
+            }
         }
     }
 

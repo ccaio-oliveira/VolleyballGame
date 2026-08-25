@@ -94,15 +94,19 @@ namespace Volley.Sim
             return true;
         }
 
-        /// <summary>Altura em que a bola cruza o plano da rede (z = 0). NaN se não cruzar.</summary>
-        public static float NetCrossHeight(BallState s, float dt, float maxTime = 8f)
+        /// <summary>Onde e quando a bola cruza o plano da rede (z = 0).</summary>
+        public static bool PredictNetCross(BallState s, float dt, out Vector3 point, out float time, float maxTime = 4f)
         {
+            point = Vector3.zero;
+            time = 0f;
+
             int maxSteps = Mathf.CeilToInt(maxTime / dt);
 
             for (int i = 0; i < maxSteps; i++)
             {
                 BallState prev = s;
                 s = Step(s, dt);
+                time += dt;
 
                 float z0 = prev.Position.z, z1 = s.Position.z;
                 bool crossed = (z0 < 0f && z1 >= 0f) || (z0 > 0f && z1 <= 0f);
@@ -110,13 +114,20 @@ namespace Volley.Sim
                 if (crossed)
                 {
                     float f = -z0 / (z1 - z0);
-                    return Mathf.Lerp(prev.Position.y, s.Position.y, f);
+                    point = Vector3.Lerp(prev.Position, s.Position, f);
+                    time = time - dt + f * dt;
+                    return true;
                 }
 
                 if (s.Position.y <= Court.BallRadius) break;
             }
 
-            return float.NaN;
+            return false;
+        }
+
+        public static float NetCrossHeight(BallState s, float dt, float maxTime = 8f)
+        {
+            return PredictNetCross(s, dt, out Vector3 p, out _, maxTime) ? p.y : float.NaN;
         }
 
         /// <summary>
