@@ -65,8 +65,8 @@ namespace Volley.Sim
         public float NetClearance = 0.25f;
         public float NextServeDelay = 1.6f;
 
-        public PlayerRole HumanRole = PlayerRole.Oposto;
-        public int HumanRoleIndex = 0;
+        public PlayerRole HumanRole = PlayerRole.Central;
+        public int HumanRoleIndex = 1;
         public int HumanIndex { get; private set; }
 
         private float _serveTimer;
@@ -268,6 +268,8 @@ namespace Volley.Sim
             ContactPoint = from;
             _serveTimer = 0f;
 
+            NovaLeitura();
+
             OnLog?.Invoke($"você: {Players[HumanIndex].Role} na zona {ZoneOf(HumanIndex)} " + $"({(IsFront(HumanIndex) ? "frente" : "fundo")})");
             OnLog?.Invoke($"saque do lado {SideName(Rally.TouchingSide)} " + $"de y={from.y:F2} a {velocity.magnitude:F1} m/s");
         }
@@ -292,6 +294,7 @@ namespace Volley.Sim
             }
 
             _prev = Ball;
+            _desdeToque += dt;
             Ball = BallPhysics.Step(Ball, dt);
 
             HasPrediction = BallPhysics.PredictLanding(Ball, Court.BallRadius, dt, 6f, out PredictedLanding, out _);
@@ -393,6 +396,8 @@ namespace Volley.Sim
                     ? NetCrossPoint.x 
                     : AttackSpotOf(atk).x;
 
+                    alvoX += _desvioBloqueio[TeamIdx(side)];
+
                     int perto = FrontClosestToX(TeamBase(side), alvoX);
 
                     // o mais próximo vai no ponto; os outros fecham ao lado, formando parede
@@ -415,6 +420,15 @@ namespace Volley.Sim
                     Players[i] = PlayerPhysics.StepDirect(Players[i], Attrs[i], MoveInput, dt);
                 } else if (i == resp && vemPraCa)
                 {
+                    Vector3 alvo = alvoBola;
+
+                    if (!IsHuman[i])
+                    {
+                        AiProfile p = PerfilDe(side);
+
+                        alvo = (_desdeToque < p.AtrasoLeitura) ? Players[i].Base : alvoBola + _leitura[TeamIdx(side)];
+                    }
+
                     Players[i] = PlayerPhysics.StepToTarget(Players[i], Attrs[i], alvoBola, dt);
                 } else
                 {
@@ -484,7 +498,9 @@ namespace Volley.Sim
                 new Vector2(Players[i].Base.x, Players[i].Base.z)
             );
 
-            return 1f - Mathf.Clamp01(desloc / MaxDisplacement);
+            float q = 1f - Mathf.Clamp01(desloc / MaxDisplacement);
+
+            return Mathf.Min(q, PerfilDe(Players[i].Side).TetoQualidade);
         }
 
         private void UpdateAiBlock()
@@ -498,6 +514,8 @@ namespace Volley.Sim
 
             int defSide = -atkSide;
             if (TimeToNet >= 0.14f) return;
+
+            if (!_vaiBloquear[TeamIdx(defSide)]) return;
 
             int b = TeamBase(defSide);
 
@@ -624,7 +642,9 @@ namespace Volley.Sim
                 }
             }
 
-            return new Vector2(melhorX / SpikeAimRange, 0f);
+            float ruido = (float)(_rng.NextDouble() * 2.0 - 1.0) * PerfilDe(Players[i].Side).RuidoMira;
+
+            return new Vector2((melhorX + ruido) / 3.6f, 0f);
         }
 
         /// <summary>Levantamento nunca é colocado em cima da rede nem do outro lado.</summary>
@@ -646,6 +666,7 @@ namespace Volley.Sim
             {
                 Ball = new BallState(Ball.Position, v);
                 Rally.OnTouch(playerIndex, Players[playerIndex].Side);
+                NovaLeitura();
                 OnLog?.Invoke($"{msg} [toque {Rally.TouchCount}/3]");
             } else
             {
@@ -853,6 +874,8 @@ namespace Volley.Sim
 
                 OnLog?.Invoke($"raspão no bloqueio #{i} margem={margem:F2} " + $"lado {SideName(defSide)} com 3 toques");
             }
+            
+            NovaLeitura();
         }
 
         // ============= rodízio ==============
@@ -1061,7 +1084,40 @@ namespace Volley.Sim
                 }
             }
 
-            return new Vector2(melhorX / 3.6f, 0f);
+            float ruido = (float)(_rng.NextDouble() * 2.0 - 1.0) * PerfilDe(Players[levantador].Side).RuidoMira;
+
+            return new Vector2((melhorX + ruido) / 3.6f, 0f);
+        }
+
+        public AiProfile Ai = AiProfile.Normal; // adversário
+        public AiProfile AiAmigo = AiProfile.Normal; // seus companheiros
+
+        private readonly Vector3[] _leitura = new Vector3[2];
+        private readonly float[] _desvioBloqueio = new float[2];
+        private readonly bool[] _vaiBloquear = new bool[2];
+        private float _desdeToque;
+
+        private AiProfile PerfilDe(int side) => (side == HumanSide) ? AiAmigo : Ai;
+
+        /// <summary>
+        /// A cada toque a bola muda de trajetória e cada time "lê" de novo - com erro.
+        /// Sorteado uma vez por trajetória, não por frame: erro por frame vira tremor.
+        /// </summary>
+        private void NovaLeitura()
+        {
+            _desdeToque = 0f;
+
+            for (int t = 0; t < 2; t++)
+            {
+                int side = (t == 0) ? Court.SideA : Court.SideB;
+                AiProfile p = PerfilDe(side);
+
+                Vector2 e = RandomInCircle(p.ErroLeitura);
+                _leitura[t] = new Vector3(e.x, 0f, e.y);
+
+                _desvioBloqueio[t] = (float)(_rng.NextDouble() * 2.0 - 1.0) * p.ErroBloqueio;
+                _vaiBloquear[t] = _rng.NextDouble() < p.ChanceBloqueio;
+            }
         }
     }
 }

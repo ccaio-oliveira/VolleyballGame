@@ -11,8 +11,12 @@ namespace Volley.Bootstrap
         [SerializeField] private float serveTargetX = 0f;
         [SerializeField] private float serveTargetZ = 6.5f;
         [SerializeField] private Transform cameraTransform;
-        [SerializeField] private PlayerRole humanRole = PlayerRole.Ponteiro;
-        [SerializeField] private int humanRoleIndex = 0;
+        [SerializeField] private PlayerRole humanRole = PlayerRole.Central;
+        [SerializeField] private int humanRoleIndex = 1;
+
+        [Header("Dificuldade")]
+        [SerializeField] private AiLevel nivelAdversario = AiLevel.Dificil;
+        [SerializeField] private AiLevel nivelCompanheiros = AiLevel.Facil;
 
         public MatchSim Sim { get; private set; }
 
@@ -25,7 +29,12 @@ namespace Volley.Bootstrap
             Sim = new MatchSim();
             Sim.HumanRole = humanRole;
             Sim.HumanRoleIndex = humanRoleIndex;
+            Sim.Ai = AiProfile.From(nivelAdversario);
+            Sim.AiAmigo = AiProfile.From(nivelCompanheiros);
             Sim.OnLog += msg => Debug.Log(msg);
+
+            Debug.Log($"config -> você: {humanRole} #{humanRoleIndex}  |  " +
+            $"adversário: {nivelAdversario}  |  companheiros: {nivelCompanheiros}");
         }
 
         // Input SEMPRE no Update: wasPressedThisFrame só é true por um frame de render,
