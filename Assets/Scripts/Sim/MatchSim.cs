@@ -215,7 +215,15 @@ namespace Volley.Sim
         /// Aproximação do líbero: um central que rodizia para o fundo joga como líbero.
         /// A substituição de verdade precisa de elenco com reservas - M6.
         /// </summary>
-        public PlayerRole EffectiveRole(int i) => (Players[i].Role == PlayerRole.Central && !IsFront(i)) ? PlayerRole.Libero : Players[i].Role;
+        public PlayerRole EffectiveRole(int i) {
+            if (Players[i].Role != PlayerRole.Central) return Players[i].Role;
+
+            if (IsFront(i)) return PlayerRole.Central;
+
+            if (ZoneOf(i) == 1) return PlayerRole.Central; // saca; o líbero só entra depois
+
+            return PlayerRole.Libero;
+        } 
 
         private static bool Recebe(PlayerRole r) => r == PlayerRole.Ponteiro || r == PlayerRole.Libero;
 
@@ -308,6 +316,12 @@ namespace Volley.Sim
 
             if (!jaResolvido && TimeToContact <= 0f)
             {
+                if (Rally.TouchCount >= 3)
+                {
+                    EndRally(-Rally.TouchingSide, "quatro toques");
+                    return;
+                }
+
                 int i = ActiveIndex;
 
                 if (IsHuman[i])
@@ -554,6 +568,12 @@ namespace Volley.Sim
                     }
                 default:
                     {
+                        if (!IsFront(i) && Mathf.Abs(Ball.Position.z) < Court.AttackLine && Ball.Position.y > NetHeight)
+                        {
+                            EndRally(-side, "ataque de fundo à frente da linha de 3m");
+                            break;
+                        }
+
                         Vector2 mira = IsHuman[i] ? _armedAim : AiAim(i);
                         float baseX = Mathf.Clamp(mira.x * SpikeAimRange, -3.8f, 3.8f);
 
