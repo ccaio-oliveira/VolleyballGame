@@ -7,7 +7,6 @@ namespace Volley.Bootstrap
     public class GameRoot : MonoBehaviour
     {
         [Header("Saque por alvo")]
-        [SerializeField] private bool useTargetAiming = true;
         [SerializeField] private float serveTargetX = 0f;
         [SerializeField] private float serveTargetZ = 6.5f;
         [SerializeField] private Transform cameraTransform;
