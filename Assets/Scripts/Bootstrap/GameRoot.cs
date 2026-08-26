@@ -6,18 +6,13 @@ namespace Volley.Bootstrap
     /// <summary>Ponte entre o Unity e a simulação. O único MonoBehaviour com lógica.</summary>
     public class GameRoot : MonoBehaviour
     {
-        [Header("Saque de teste")]
-        [SerializeField] private Vector3 serveFrom = new Vector3(0f, 2.7f, -9.5f);
-        [SerializeField] private float serveSpeed = 18f;
-        [SerializeField] private float serveAngleDeg = 12f;
-
         [Header("Saque por alvo")]
         [SerializeField] private bool useTargetAiming = true;
-        [SerializeField] private float targetX = 0f;
-        [SerializeField] private float targetZ = 6.5f;
-        
-        [SerializeField] private float netClearance = 0.25f;
+        [SerializeField] private float serveTargetX = 0f;
+        [SerializeField] private float serveTargetZ = 6.5f;
         [SerializeField] private Transform cameraTransform;
+        [SerializeField] private PlayerRole humanRole = PlayerRole.Ponteiro;
+        [SerializeField] private int humanRoleIndex = 0;
 
         public MatchSim Sim { get; private set; }
 
@@ -28,6 +23,8 @@ namespace Volley.Bootstrap
         private void Awake()
         {
             Sim = new MatchSim();
+            Sim.HumanRole = humanRole;
+            Sim.HumanRoleIndex = humanRoleIndex;
             Sim.OnLog += msg => Debug.Log(msg);
         }
 
@@ -78,42 +75,12 @@ namespace Volley.Bootstrap
 
         private void ServeNow()
         {
-            int side = Sim.Rally.ServingSide;
+            if(Sim.Match.Finished) return;
+            if (Sim.Rally.ServingSide != Sim.HumanSide) return;
 
-            // espelhar o saque pro outro lado é uma troca de sinal - só por causa da origem no centro da quadra.
-            Vector3 from = new Vector3(
-                serveFrom.x,
-                serveFrom.y,
-                Mathf.Abs(serveFrom.z) * side
-            );
-
-            if (useTargetAiming)
-            {
-                Vector3 target = new Vector3(targetX, Court.BallRadius, Mathf.Abs(targetZ) * -side);
-
-                if (!BallPhysics.SolveFlattestLegal(from, target, Sim.NetHeight, netClearance, Time.fixedDeltaTime, out Vector3 v))
-                {
-                    Debug.LogWarning($"nenhum ângulo legal atinge z={target.z:F1}");
-                    return;
-                }
-
-                float yNet = BallPhysics.NetCrossHeight(new BallState(from, v), Time.fixedDeltaTime);
-                float angle = Mathf.Asin(v.normalized.y) * Mathf.Rad2Deg;
-
-                Debug.Log($"solver: {v.magnitude:F2} m/s a {angle:F1}º " + $"-> rede a {yNet:F2} m");
-
-                Sim.Serve(from, v);
-                return;
-            }
-
-            float rad = serveAngleDeg * Mathf.Deg2Rad;
-            Vector3 dir = new Vector3(
-                0f,
-                Mathf.Sin(rad),
-                Mathf.Cos(rad) * -side
-            );
-
-            Sim.Serve(from, dir * serveSpeed);
+            Sim.ServeTargetX = serveTargetX;
+            Sim.ServeTargetZ = serveTargetZ;
+            Sim.ServeNow(Sim.Rally.ServingSide);
         }
 
         /// <summary>Converte intenção de tela em direção de mundo, usando a câmera.</summary>

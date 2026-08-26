@@ -638,56 +638,57 @@ trajetória = alvo_ideal + erro · (1 − qualidade)</pre>
   <section class="rp-sec">
     <div>
       <div class="rp-eyebrow">Referência 06</div>
-      <h2>Funções, rodízio e fases</h2>
+      <h2>Funções, rodízio e casas funcionais</h2>
     </div>
     <p>
-      Sistema <strong>5×1</strong>: um levantador, um oposto na diagonal dele, dois ponteiros
-      e dois centrais em diagonal. A <strong>zona</strong> vem do rodízio; a
-      <strong>função</strong> é permanente; a <strong>posição real</strong> é a combinação
-      das duas com a fase da jogada.
+      Sistema <strong>5×1</strong>: levantador e oposto em diagonal, dois ponteiros em
+      diagonal, dois centrais em diagonal. A <strong>zona</strong> vem do rodízio e vale
+      só no instante do saque; depois disso cada um corre para a <strong>casa da sua
+      função</strong>.
     </p>
     <p class="rp-quote">
-      A ordem de rodízio só vale no instante do contato do saque. Depois disso a
-      movimentação é livre — é por isso que o levantador infiltra do fundo para a rede.
+      A zona específica não importa — só importa se o jogador está na frente ou no fundo.
+      As seis rotações colapsam em seis casas fixas, e as diagonais do 5×1 garantem que
+      elas nunca colidem.
     </p>
 
     <div class="rp-card rp-pad">
-      <pre class="rp-pre">        R E D E
-   <b>4</b>   |   <b>3</b>   |   <b>2</b>     <i>frente — bloqueiam e atacam</i>
-   <b>5</b>   |   <b>6</b>   |   <b>1</b>     <i>fundo — defendem; zona 1 saca</i>
+      <pre class="rp-pre">              R E D E
+   <b>P4</b>        <b>P3</b>        <b>P2</b>
+ ponteiro    central   oposto/levantador
 
-rodízio: <b>1 → 6 → 5 → 4 → 3 → 2 → 1</b>   <i>só quem recebia e ganhou o ponto</i>
+   <b>P5</b>        <b>P6</b>        <b>P1</b>
+  líbero    ponteiro   levantador/oposto
 
-escalação 5×1 por slot:
-   0 <b>Levantador</b>   3 <b>Oposto</b>      <i>diagonais</i>
-   1 <b>Ponteiro</b>     4 <b>Ponteiro</b>
-   2 <b>Central</b>      5 <b>Central</b></pre>
+rodízio: <b>P1 → P6 → P5 → P4 → P3 → P2 → P1</b>   <i>só quem recebia e ganhou o ponto</i>
+
+escalação por slot:  0 <b>Lev</b>  1 <b>Pon</b>  2 <b>Cen</b>  3 <b>Opo</b>  4 <b>Pon</b>  5 <b>Cen</b>
+                     <i>diagonais: 0–3, 1–4, 2–5</i></pre>
     </div>
 
     <div class="rp-tablewrap">
       <table class="rp-t">
         <thead>
-          <tr><th>Papel</th><th>Saque / Defesa</th><th>Recepção</th><th>Ataque</th></tr>
+          <tr><th>Função</th><th>Recepção</th><th>Ataque</th><th>Defesa / bloqueio</th></tr>
         </thead>
         <tbody>
-          <tr><td>Levantador · frente</td><td>bloqueia zona 2</td><td>infiltra p/ rede</td><td>alvo do passe</td></tr>
-          <tr><td>Levantador · fundo</td><td>defende zona 1</td><td>infiltra p/ rede</td><td>alvo do passe</td></tr>
-          <tr><td>Central · frente</td><td>bloqueia zona 3</td><td>rede, centro</td><td>bola rápida</td></tr>
-          <tr><td>Central · fundo <em>(líbero)</em></td><td>defende zona 6</td><td>recebe, centro</td><td>cobertura</td></tr>
-          <tr><td>Oposto · frente</td><td>bloqueia zona 2</td><td>rede, zona 2</td><td>aproximação zona 2</td></tr>
-          <tr><td>Oposto · fundo</td><td>defende zona 1</td><td>atrás dos 3 m</td><td>ataque de fundo</td></tr>
-          <tr><td>Ponteiro · frente</td><td>bloqueia zona 4</td><td>recebe</td><td>aproximação zona 4</td></tr>
-          <tr><td>Ponteiro · fundo</td><td>defende zona 5</td><td>recebe</td><td>pipe</td></tr>
+          <tr><td>Levantador</td><td>infiltra p/ zona P2–P3</td><td>zona de levantamento</td><td>frente: bloqueia P2 · fundo: defende P1</td></tr>
+          <tr><td>Oposto · frente</td><td>P2, fora do passe</td><td>aproximação P2</td><td>bloqueia P2</td></tr>
+          <tr><td>Oposto · fundo</td><td>P1, atrás dos 3 m</td><td>prepara ataque de fundo</td><td>defende P1</td></tr>
+          <tr><td>Central · frente</td><td>P3, na rede</td><td>primeiro tempo</td><td>bloqueia P3</td></tr>
+          <tr><td>Central · fundo <em>(líbero)</em></td><td>recebe</td><td>cobertura</td><td>defende P5</td></tr>
+          <tr><td>Ponteiro · frente</td><td>recebe</td><td>aproximação P4</td><td>bloqueia P4</td></tr>
+          <tr><td>Ponteiro · fundo</td><td>recebe</td><td>prepara pipe</td><td>defende P6</td></tr>
         </tbody>
       </table>
     </div>
 
     <p>
-      <strong>Levantador no fundo</strong> é a rotação mais ofensiva: três atacantes na rede
-      mais o pipe. <strong>Levantador na frente</strong> deixa só dois atacantes — é onde o
-      técnico faz a <em>inversão</em> (dois por três) para recuperar o terceiro.
-      Adiado: líbero como jogador próprio, ataque de fundo e inversão dependem de elenco
-      com reservas — M6.
+      Recebem três: os dois ponteiros e o líbero. Ficam de fora levantador (precisa da
+      segunda bola), oposto e central (ficam livres para atacar).
+      <strong>Levantador no fundo</strong> é a rotação mais ofensiva — três atacantes na rede
+      mais o pipe. Adiado para o M6: líbero como jogador próprio, ataque de fundo e inversão,
+      que dependem de elenco com reservas.
     </p>
   </section>
 

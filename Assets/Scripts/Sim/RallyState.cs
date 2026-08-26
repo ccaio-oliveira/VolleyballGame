@@ -13,8 +13,6 @@ namespace Volley.Sim
         public int LastToucher = -1;
         public int LastTouchSide;
         public int ServingSide = Court.SideA;
-        public int ScoreA;
-        public int ScoreB;
         public string LastReason = "";
         public bool ServeInFlight;
 
@@ -47,9 +45,6 @@ namespace Volley.Sim
 
         public void AwardPoint(int winnerSide, string reason)
         {
-            if (winnerSide == Court.SideA) ScoreA++;
-            else ScoreB++;
-
             ServingSide = winnerSide;
             LastReason = reason;
             Phase = RallyPhase.PointOver;

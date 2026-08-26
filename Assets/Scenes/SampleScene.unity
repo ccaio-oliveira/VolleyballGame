@@ -248,6 +248,51 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &190553629
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 190553631}
+  - component: {fileID: 190553630}
+  m_Layer: 0
+  m_Name: HUD
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &190553630
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 190553629}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a0e6608c521245f39375413fc3c7eba, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Volley.View.ScoreboardView
+  root: {fileID: 850650621}
+--- !u!4 &190553631
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 190553629}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1.48959, y: 0, z: 6.39329}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &221214938
 GameObject:
   m_ObjectHideFlags: 0
@@ -872,13 +917,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8fb03135c1fe64b328b6a6f4108fcedc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Volley.Bootstrap.GameRoot
-  serveFrom: {x: 0, y: 2.7, z: -9.5}
-  serveSpeed: 18
-  serveAngleDeg: 12
   useTargetAiming: 1
-  targetX: 0
-  targetZ: 6.5
-  netClearance: 0.25
+  serveTargetX: 0
+  serveTargetZ: 6.5
   cameraTransform: {fileID: 330585546}
 --- !u!4 &850650622
 Transform:
@@ -1620,3 +1661,4 @@ SceneRoots:
   - {fileID: 221214942}
   - {fileID: 671532164}
   - {fileID: 1945412204}
+  - {fileID: 190553631}
