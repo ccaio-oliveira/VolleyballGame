@@ -2,8 +2,9 @@ using UnityEngine;
 
 namespace Volley.Sim
 {
-    /// <summary>Estado completo da bola num instante.
-    /// É struct (value type) de propósito: copiar é cópia profunda e barata, então a predição de trajetória nunca consegue mutar a bola real.
+    /// <summary>
+    /// Complete state of the ball at one instant. A struct on purpose: copying is a deep,
+    /// cheap copy, so trajectory prediction can never mutate the real ball.
     /// </summary>
     public struct BallState
     {

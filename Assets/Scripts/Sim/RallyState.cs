@@ -1,17 +1,13 @@
-using PlasticGui.WorkspaceWindow;
-
 namespace Volley.Sim
 {
-    public enum RallyPhase { PreServe, InPlay, PointOver }
-
-    /// <summary>Estado do rally e do placar. Reage a eventos, nunca roda sozinha.</summary>
+    /// <summary>State of the current rally. Reacts to events; never runs on its own.</summary>
     public class RallyState
     {
         public RallyPhase Phase = RallyPhase.PreServe;
-        public int TouchingSide;
-        public int TouchCount;
-        public int LastToucher = -1;
-        public int LastTouchSide;
+        public int TouchingSide;             // side in possession (territory)
+        public int TouchCount;               // 0..3
+        public int LastToucher = -1;         // player index, -1 = nobody
+        public int LastTouchSide;            // who touched last (responsibility) — survives net crossings
         public int ServingSide = Court.SideA;
         public string LastReason = "";
         public bool ServeInFlight;
@@ -22,7 +18,7 @@ namespace Volley.Sim
             TouchingSide = side;
             TouchCount = 0;
             LastToucher = -1;
-            LastTouchSide = side;
+            LastTouchSide = side;   // the serve counts as a touch
             ServeInFlight = true;
         }
 
@@ -31,30 +27,31 @@ namespace Volley.Sim
             TouchingSide = newSide;
             TouchCount = 0;
             LastToucher = -1;
+            // LastTouchSide stays: flying over is not touching
         }
 
-        /// <summary>Registra um toque. Retorna true se foi falta (4º toque).</summary>
+        /// <summary>Records a touch. Returns true when it was a fault (4th touch).</summary>
         public bool OnTouch(int playerId, int side)
         {
             TouchCount++;
             LastToucher = playerId;
             LastTouchSide = side;
-            ServeInFlight = false;
+            ServeInFlight = false;   // the serve never passes through here, so this is the reception
             return TouchCount > 3;
         }
 
-        public void AwardPoint(int winnerSide, string reason)
-        {
-            ServingSide = winnerSide;
-            LastReason = reason;
-            Phase = RallyPhase.PointOver;
-        }
-
-        /// <summary>Bloqueio: marca quem tocou, mas NÃO consome um dos três toques.</summary>
+        /// <summary>Block touch: marks who touched but does NOT consume one of the three touches.</summary>
         public void OnBlockTouch(int playerId, int side)
         {
             LastToucher = playerId;
             LastTouchSide = side;
+        }
+
+        public void AwardPoint(int winnerSide, string reason)
+        {
+            ServingSide = winnerSide;   // rally point: whoever wins the point serves
+            LastReason = reason;
+            Phase = RallyPhase.PointOver;
         }
     }
 }

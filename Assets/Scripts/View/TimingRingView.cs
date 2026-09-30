@@ -1,15 +1,21 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 using Volley.Bootstrap;
 
 namespace Volley.View
 {
+    /// <summary>Shrinking ring on the contact point: press when it meets the fixed target ring.</summary>
     public class TimingRingView : MonoBehaviour
     {
         [SerializeField] private GameRoot root;
-        [SerializeField] private Transform anelQueEncolhe;
-        [SerializeField] private Renderer[] partes;
 
-        [SerializeField] private float lead = 0.8f;
+        [FormerlySerializedAs("anelQueEncolhe")]
+        [SerializeField] private Transform shrinkingRing;
+
+        [FormerlySerializedAs("partes")]
+        [SerializeField] private Renderer[] ringRenderers;
+
+        [SerializeField] private float lead = 0.8f;       // seconds of warning before contact
         [SerializeField] private float baseSize = 0.55f;
         [SerializeField] private float maxSize = 2.6f;
 
@@ -18,24 +24,25 @@ namespace Volley.View
             if (root == null) return;
             var sim = root.Sim;
 
-            bool show = sim.BallLive && sim.HasContact 
-                        && sim.Rally.TouchingSide == sim.HumanSide 
-                        && sim.TimeToContact < lead && sim.TimeToContact > -0.30f;
-            
-            foreach (var r in partes) if (r != null) r.enabled = show;
+            bool show = sim.BallLive
+                     && sim.HasContact
+                     && sim.Rally.TouchingSide == sim.HumanSide
+                     && sim.TimeToContact < lead
+                     && sim.TimeToContact > -0.30f;
+
+            foreach (var ringRenderer in ringRenderers)
+                if (ringRenderer != null) ringRenderer.enabled = show;
+
             if (!show) return;
 
-            Vector3 p = sim.ContactPoint;
-            p.y = 0.03f;
-            transform.position = p;
+            Vector3 position = sim.ContactPoint;
+            position.y = 0.03f;
+            transform.position = position;
 
-            float k = Mathf.Clamp01(sim.TimeToContact / lead);
-            float s = Mathf.Lerp(baseSize, maxSize, k);
+            float progress = Mathf.Clamp01(sim.TimeToContact / lead);
+            float size = Mathf.Lerp(baseSize, maxSize, progress);
 
-            if (anelQueEncolhe != null)
-            {
-                anelQueEncolhe.localScale = new Vector3(s, 0.004f, s);
-            }
+            if (shrinkingRing != null) shrinkingRing.localScale = new Vector3(size, 0.004f, size);
         }
     }
 }

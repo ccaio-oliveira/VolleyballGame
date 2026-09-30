@@ -3,7 +3,7 @@ using Volley.Bootstrap;
 
 namespace Volley.View
 {
-    /// <summary>Só desenha. Lê o estado da simulação e move o transform. Nada mais.</summary>
+    /// <summary>Only draws. Reads the simulation state and moves the transform — nothing else.</summary>
     public class BallView : MonoBehaviour
     {
         [SerializeField] private GameRoot root;

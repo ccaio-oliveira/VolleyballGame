@@ -2,135 +2,149 @@ using UnityEngine;
 
 namespace Volley.Sim
 {
-    /// <summary>Detecção por travessia: rede, teto, chão e bloqueio.</summary>
+    /// <summary>
+    /// Crossing detection: net, ceiling, floor and block. Every test compares the previous
+    /// and current ball state, so a fast ball can never tunnel through a thin plane.
+    /// </summary>
     public partial class MatchSim
     {
-        // ================= detecção =================
+        /// <returns>True when the rally ended on this crossing.</returns>
         private bool DetectNetCrossing()
         {
-            float z0 = _prev.Position.z;
+            float z0 = _previousBall.Position.z;
             float z1 = Ball.Position.z;
 
             bool crossed = (z0 < 0f && z1 >= 0f) || (z0 > 0f && z1 <= 0f);
             if (!crossed) return false;
 
-            float f = -z0 / (z1 - z0);
-            Vector3 cross = Vector3.Lerp(_prev.Position, Ball.Position, f);
+            float t = -z0 / (z1 - z0);
+            Vector3 crossing = Vector3.Lerp(_previousBall.Position, Ball.Position, t);
 
-            if (cross.y < NetHeight)
+            if (crossing.y < NetHeight)
             {
-                EndRally(-Rally.LastTouchSide, $"na rede (y={cross.y:F2})");
+                EndRally(-Rally.LastTouchSide, $"na rede (y={crossing.y:F2})");
                 return true;
             }
 
-            if (Mathf.Abs(cross.x) > Court.HalfWidth)
+            if (Mathf.Abs(crossing.x) > Court.HalfWidth)
             {
-                EndRally(-Rally.LastTouchSide, $"fora das antenas (x={cross.x:F2})");
+                EndRally(-Rally.LastTouchSide, $"fora das antenas (x={crossing.x:F2})");
                 return true;
             }
 
-            int defSide = Court.SideOf(z1);
-            int blocker = Rally.ServeInFlight ? -1 : FindBlocker(cross, defSide);
+            int defendingSide = Court.SideOf(z1);
+
+            // a serve can never be blocked
+            int blocker = Rally.ServeInFlight ? -1 : FindBlocker(crossing, defendingSide);
 
             if (blocker >= 0)
             {
-                ApplyBlock(blocker, cross, defSide);
+                ApplyBlock(blocker, crossing, defendingSide);
                 return false;
             }
 
-            Rally.OnNetCrossed(Court.SideOf(z1));
-            OnLog?.Invoke($"cruzou a rede a {cross.y:F2} m -> " + $"posse do lado {SideName(Rally.TouchingSide)}");
+            Rally.OnNetCrossed(defendingSide);
+            OnLog?.Invoke($"cruzou a rede a {crossing.y:F2} m -> " + $"posse do lado {SideName(Rally.TouchingSide)}");
             return false;
         }
 
         private bool DetectCeiling()
         {
-            if (_prev.Position.y < Court.Ceiling && Ball.Position.y >= Court.Ceiling)
-            {
-                EndRally(-Rally.LastTouchSide, "bateu no teto");
-                return true;
-            }
-            return false;
+            if (_previousBall.Position.y >= Court.Ceiling || Ball.Position.y < Court.Ceiling) return false;
+
+            EndRally(-Rally.LastTouchSide, "bateu no teto");
+            return true;
         }
 
         private bool DetectGround()
         {
-            float y0 = _prev.Position.y;
+            float y0 = _previousBall.Position.y;
             float y1 = Ball.Position.y;
 
             if (!(y0 > Court.BallRadius && y1 <= Court.BallRadius)) return false;
 
-            float denom = y0 - y1;
-            float f = denom > 1e-6f ? (y0 - Court.BallRadius) / denom : 0f;
-            Vector3 p = Vector3.Lerp(_prev.Position, Ball.Position, f);
+            float denominator = y0 - y1;
+            float t = denominator > 1e-6f ? (y0 - Court.BallRadius) / denominator : 0f;
+            Vector3 landing = Vector3.Lerp(_previousBall.Position, Ball.Position, t);
 
-            if (Court.IsInBounds(p))
-                EndRally(-Court.SideOf(p.z), $"quicou no lado {SideName(Court.SideOf(p.z))} " + $"em x={p.x:F2} z={p.z:F2}");
+            OnEvent?.Invoke(SimEventKind.BallLanded, landing, Mathf.Clamp01(Ball.Velocity.magnitude / 22f));
+
+            if (Court.IsInBounds(landing))
+                EndRally(-Court.SideOf(landing.z), $"quicou no lado {SideName(Court.SideOf(landing.z))} " + $"em x={landing.x:F2} z={landing.z:F2}");
             else
-                EndRally(-Rally.LastTouchSide, $"fora em x={p.x:F2} z={p.z:F2}");
+                EndRally(-Rally.LastTouchSide, $"fora em x={landing.x:F2} z={landing.z:F2}");
 
             return true;
         }
 
-        private int FindBlocker(Vector3 cross, int defSide)
+        // ---------- block ----------
+
+        /// <summary>
+        /// A blocker touches the ball when it crosses the net inside the band his hands
+        /// occupy — which only reaches above the tape if he actually jumped.
+        /// </summary>
+        private int FindBlocker(Vector3 crossing, int defendingSide)
         {
-            int b = TeamBase(defSide);
+            int teamBase = TeamBase(defendingSide);
 
             for (int k = 0; k < 6; k++)
             {
-                int i = b + k;
+                int i = teamBase + k;
                 if (Players[i].BlockTimer <= 0f) continue;
                 if (!IsFront(i)) continue;
 
-                float topo = Attrs[i].BlockReach;
-                float baixo = Mathf.Max(NetHeight, topo - BlockHandSpan);
+                float handTop = Players[i].Position.y + Attrs[i].ReachHeight;
+                float handBottom = Mathf.Max(NetHeight, handTop - BlockHandSpan);
 
-                if (Mathf.Abs(cross.x - Players[i].Position.x) <= BlockHalfWidth && cross.y >= baixo && cross.y <= topo)
-                {
-                    return i;
-                }
+                bool insideLateral = Mathf.Abs(crossing.x - Players[i].Position.x) <= BlockHalfWidth;
+                bool insideHeight = crossing.y >= handBottom && crossing.y <= handTop;
+
+                if (insideLateral && insideHeight) return i;
             }
 
             return -1;
         }
 
-        private void ApplyBlock(int i, Vector3 cross, int defSide)
+        private void ApplyBlock(int i, Vector3 crossing, int defendingSide)
         {
-            int atkSide = -defSide;
+            int attackingSide = -defendingSide;
 
-            // margem 1 = bola passou rente à fita, mãos muito acima -> murro
-            // margem 0 = bola passou no topo do alcance -> raspão
-            float margem = (Attrs[i].BlockReach - cross.y) / BlockHandSpan;
+            // margin 1 = ball crossed at the base of the hands -> stuff block
+            // margin 0 = ball crossed at the fingertips      -> deflection
+            float handTop = Players[i].Position.y + Attrs[i].ReachHeight;
+            float margin = (handTop - crossing.y) / BlockHandSpan;
 
-            Rally.OnBlockTouch(i, defSide);
+            Rally.OnBlockTouch(i, defendingSide);
 
             float speed = Ball.Velocity.magnitude;
-            Vector3 pos = cross;
+            Vector3 position = crossing;
 
-            if (margem > 0.55f)
+            OnEvent?.Invoke(SimEventKind.Block, crossing, Mathf.Clamp01(speed / 25f));
+
+            if (margin > 0.55f)
             {
-                // BLOQUEIO: desce cravado do lado de quem atacou
-                pos.z = 0.05f * atkSide;
-                Vector3 v = new Vector3(Ball.Velocity.x * 0.25f, -speed * 0.30f, -Ball.Velocity.z * 0.28f);
+                // stuff block: drives straight down on the attacker's side.
+                // The 5 cm offset keeps the next crossing test alive (zero is neither side).
+                position.z = 0.05f * attackingSide;
+                Vector3 velocity = new Vector3(Ball.Velocity.x * 0.25f, -speed * 0.30f, -Ball.Velocity.z * 0.28f);
 
-                Ball = new BallState(pos, v);
-                Rally.OnNetCrossed(atkSide);
+                SetBallTrajectory(position, velocity);
+                Rally.OnNetCrossed(attackingSide);
 
-                OnLog?.Invoke($"BLOQUEIO #{i} margem={margem:F2} " + $"a bola volta pro lado {SideName(atkSide)}");
-            } else
-            {
-                // RASPÃO: passa, mas lenta e alta - vira bola defensável
-                pos.z = 0.05f * defSide;
-                Vector3 v = Ball.Velocity * 0.42f;
-                v.y = Mathf.Abs(v.y) + 1.6f;
-
-                Ball = new BallState(pos, v);
-                Rally.OnNetCrossed(defSide);
-
-                OnLog?.Invoke($"raspão no bloqueio #{i} margem={margem:F2} " + $"lado {SideName(defSide)} com 3 toques");
+                OnLog?.Invoke($"BLOQUEIO #{i} margem={margin:F2} " + $"a bola volta pro lado {SideName(attackingSide)}");
             }
-            
-            NovaLeitura();
+            else
+            {
+                // deflection: goes over, slow and high — a playable ball
+                position.z = 0.05f * defendingSide;
+                Vector3 velocity = Ball.Velocity * 0.42f;
+                velocity.y = Mathf.Abs(velocity.y) + 1.6f;
+
+                SetBallTrajectory(position, velocity);
+                Rally.OnNetCrossed(defendingSide);
+
+                OnLog?.Invoke($"raspão no bloqueio #{i} margem={margin:F2} " + $"lado {SideName(defendingSide)} com 3 toques");
+            }
         }
     }
 }

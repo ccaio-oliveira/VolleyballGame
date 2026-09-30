@@ -3,16 +3,18 @@ using Volley.Bootstrap;
 
 namespace Volley.View
 {
+    /// <summary>Draws one player. The jump height comes straight from the simulated position.</summary>
     public class PlayerView : MonoBehaviour
     {
+        private const float HalfBodyHeight = 0.95f;
+
         [SerializeField] private GameRoot root;
         [SerializeField] private int index;
-        [SerializeField] private float jumpHeight = 0.55f;
 
-        public void Bind(GameRoot r, int i)
+        public void Bind(GameRoot gameRoot, int playerIndex)
         {
-            root = r;
-            index = i;
+            root = gameRoot;
+            index = playerIndex;
         }
 
         private void Update()
@@ -20,18 +22,12 @@ namespace Volley.View
             if (root == null) return;
 
             var sim = root.Sim;
-            Vector3 p = sim.Players[index].Position;
+            Vector3 position = sim.Players[index].Position;
 
-            float bt = sim.Players[index].BlockTimer;
-            if (bt > 0f)
-            {
-                float t = 1f - (bt / sim.BlockDuration);
-                p.y += 4f * jumpHeight * t * (1f - t);
-            }
+            // debug line to the functional home, visible in the Scene view during Play
+            Debug.DrawLine(position, sim.Players[index].Base + Vector3.up * 0.1f, Color.yellow);
 
-            Debug.DrawLine(p, sim.Players[index].Base + Vector3.up * 0.1f, Color.yellow);
-
-            transform.position = p + Vector3.up * 0.95f;
+            transform.position = position + Vector3.up * HalfBodyHeight;
         }
     }
 }

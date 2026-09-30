@@ -3,7 +3,7 @@ using Volley.Bootstrap;
 
 namespace Volley.View
 {
-    /// <summary>Desenha o marcador circular no ponto de queda previsto.</summary>
+    /// <summary>Disc on the predicted landing point of the ball.</summary>
     public class LandingMarkerView : MonoBehaviour
     {
         [SerializeField] private GameRoot root;
@@ -19,10 +19,9 @@ namespace Volley.View
             if (markerRenderer != null) markerRenderer.enabled = show;
             if (!show) return;
 
-            Vector3 p = sim.PredictedLanding;
-            p.y = 0.01f; // 1 cm acima do chão
-
-            transform.position = p;
+            Vector3 position = sim.PredictedLanding;
+            position.y = 0.01f;   // 1 cm above the floor avoids z-fighting
+            transform.position = position;
         }
     }
 }

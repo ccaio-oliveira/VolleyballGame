@@ -2,159 +2,201 @@ using UnityEngine;
 
 namespace Volley.Sim
 {
-    /// <summary>Comportamento e dificuldade da IA.</summary>
+    /// <summary>
+    /// AI decisions and difficulty. Difficulty degrades perception, never execution:
+    /// a read error becomes displacement, and displacement becomes a poor touch.
+    /// </summary>
     public partial class MatchSim
     {
-        public AiProfile Ai = AiProfile.Normal; // adversário
+        public AiProfile OpponentProfile = AiProfile.Normal;
+        public AiProfile TeammateProfile = AiProfile.Normal;
 
-        public AiProfile AiAmigo = AiProfile.Normal; // seus companheiros
+        // rolled once per trajectory, per team (0 = side A, 1 = side B)
+        private readonly Vector3[] _readError = new Vector3[2];
+        private readonly float[] _blockOffset = new float[2];
+        private readonly bool[] _willBlock = new bool[2];
+        private float _timeSinceTouch;
 
-        private readonly Vector3[] _leitura = new Vector3[2];
-
-        private readonly float[] _desvioBloqueio = new float[2];
-
-        private readonly bool[] _vaiBloquear = new bool[2];
-
-        private float _desdeToque;
-
-        private AiProfile PerfilDe(int side) => (side == HumanSide) ? AiAmigo : Ai;
+        private AiProfile ProfileFor(int side) => (side == HumanSide) ? TeammateProfile : OpponentProfile;
 
         /// <summary>
-        /// Qualidade da IA: quanto ela foi obrigada a sair da posição.
+        /// AI touch quality, measured at the moment of contact.
+        /// First touch (reception or dig): how centered the player is under the ball. A passer
+        /// is supposed to run to the ball, so leaving his home is not a mistake.
+        /// Set and attack: displacement from the functional home — a setter dragged out of
+        /// position by a bad pass sets worse, which is the chain the whole game is built on.
         /// </summary>
         private float AiQuality(int i)
         {
-            float desloc = Vector2.Distance(
-                new Vector2(Players[i].Position.x, Players[i].Position.z),
-                new Vector2(Players[i].Base.x, Players[i].Base.z)
-            );
+            float quality = Rally.TouchCount == 0
+                ? FirstTouchQuality(i)
+                : HomeDisplacementQuality(i);
 
-            float q = 1f - Mathf.Clamp01(desloc / MaxDisplacement);
+            return Mathf.Min(quality, ProfileFor(Players[i].Side).QualityCap);
+        }
 
-            return Mathf.Min(q, PerfilDe(Players[i].Side).TetoQualidade);
+        /// <summary>1 with the ball on the player's midline, down to EdgeOfReachQuality at the edge of reach.</summary>
+        private float FirstTouchQuality(int i)
+        {
+            float offCenter = HorizontalDistance(Players[i].Position, Ball.Position);
+            return Mathf.Lerp(1f, EdgeOfReachQuality, offCenter / Attrs[i].Reach);
+        }
+
+        private float HomeDisplacementQuality(int i)
+        {
+            float displacement = HorizontalDistance(Players[i].Position, Players[i].Base);
+            return 1f - Mathf.Clamp01(displacement / MaxDisplacement);
         }
 
         /// <summary>
-        /// A cada toque a bola muda de trajetória e cada time "lê" de novo - com erro.
-        /// Sorteado uma vez por trajetória, não por frame: erro por frame vira tremor.
+        /// Every touch changes the trajectory and each team "reads" it again — with error.
+        /// Rolled once per trajectory, never per frame: per-frame error becomes jitter.
         /// </summary>
-        private void NovaLeitura()
+        private void RollAiReads()
         {
-            _desdeToque = 0f;
+            _timeSinceTouch = 0f;
 
-            for (int t = 0; t < 2; t++)
+            for (int team = 0; team < 2; team++)
             {
-                int side = (t == 0) ? Court.SideA : Court.SideB;
-                AiProfile p = PerfilDe(side);
+                int side = (team == 0) ? Court.SideA : Court.SideB;
+                AiProfile profile = ProfileFor(side);
 
-                Vector2 e = RandomInCircle(p.ErroLeitura);
-                _leitura[t] = new Vector3(e.x, 0f, e.y);
+                Vector2 error = RandomInCircle(profile.ReadError);
+                _readError[team] = new Vector3(error.x, 0f, error.y);
 
-                _desvioBloqueio[t] = (float)(_rng.NextDouble() * 2.0 - 1.0) * p.ErroBloqueio;
-                _vaiBloquear[t] = _rng.NextDouble() < p.ChanceBloqueio;
+                _blockOffset[team] = (float)(_rng.NextDouble() * 2.0 - 1.0) * profile.BlockError;
+                _willBlock[team] = _rng.NextDouble() < profile.BlockChance;
             }
         }
 
+        /// <summary>AI front-row players jump when an attack is about to cross in front of them.</summary>
         private void UpdateAiBlock()
         {
             if (!HasNetCross) return;
             if (NetCrossPoint.y <= NetHeight) return;
             if (Rally.ServeInFlight) return;
 
-            int atkSide = Court.SideOf(Ball.Position.z);
-            if (atkSide == 0) return;
+            int attackingSide = Court.SideOf(Ball.Position.z);
+            if (attackingSide == 0) return;
 
-            int defSide = -atkSide;
+            int defendingSide = -attackingSide;
             if (TimeToNet >= 0.14f) return;
+            if (!_willBlock[TeamIndex(defendingSide)]) return;
 
-            if (!_vaiBloquear[TeamIdx(defSide)]) return;
-
-            int b = TeamBase(defSide);
+            int teamBase = TeamBase(defendingSide);
 
             for (int k = 0; k < 6; k++)
             {
-                int i = b + k;
-                
-                if (i == HumanIndex) continue;
+                int i = teamBase + k;
+
+                if (i == HumanIndex) continue;   // the human block is on the button
                 if (!IsFront(i)) continue;
                 if (EffectiveRole(i) == PlayerRole.Libero) continue;
                 if (Players[i].BlockTimer > 0f) continue;
-                if (NetCrossPoint.y > Attrs[i].BlockReach) continue;
+                if (NetCrossPoint.y > Players[i].Position.y + Attrs[i].ReachHeight) continue;
                 if (Mathf.Abs(NetCrossPoint.x - Players[i].Position.x) > BlockHalfWidth) continue;
 
+                Players[i] = PlayerPhysics.Jump(Players[i], Vector2.zero, 0f);
                 Players[i].BlockTimer = BlockDuration;
                 OnLog?.Invoke($"[#{i}] IA salta");
             }
         }
 
-        /// <summary>A IA procura o buraco entre os bloqueadores adversários.</summary>
-        private Vector2 AiAim(int i)
+        /// <summary>
+        /// The AI arms its own touch, each at the right height. Same mechanism as the human —
+        /// one clock per player; only who presses the button changes.
+        /// </summary>
+        private void UpdateAiTouches()
         {
-            int opp = -Players[i].Side;
-            int b = TeamBase(opp);
+            if (Rally.TouchCount >= 3) return;
 
-            float melhorX = 0f, melhorD = -1f;
+            int i = ActiveIndex;
+            if (IsHuman[i]) return;
+            if (Players[i].HitTimer > 0f) return;
+            if (_resolvedTouch == Rally.TouchCount && _resolvedSide == Rally.TouchingSide) return;
+
+            bool isAttack = (Rally.TouchCount == 2);
+
+            // on the attack the AI aims its hand at the top of the jump, not standing reach
+            float height = isAttack ? Attrs[i].ReachHeight + 0.78f
+                         : Rally.TouchCount == 1 ? OverheadHeight(i)
+                                                 : PassHeight(i);
+
+            if (!BallPhysics.PredictLanding(Ball, height, 1f / 60f, 6f, out _, out float timeToHeight)) return;
+            if (timeToHeight > (isAttack ? 0.40f : 0.22f)) return;   // only commits when close
+
+            if (isAttack && Players[i].Position.y <= 0f)
+                Players[i] = PlayerPhysics.Jump(Players[i], Vector2.zero, 0f);
+
+            Players[i].HitTimer = Mathf.Max(0.001f, timeToHeight);
+        }
+
+        /// <summary>The AI spikes into the widest gap between the opposing blockers.</summary>
+        private Vector2 AiSpikeAim(int i)
+        {
+            int opponentBase = TeamBase(-Players[i].Side);
+
+            float bestX = 0f, bestGap = -1f;
 
             for (int s = 0; s < 7; s++)
             {
-                float x = -3.6f + s * 1.2f;
-                float d = float.MaxValue;
+                float x = -3.6f + s * 1.2f;   // derived from the integer index, never accumulated
+                float gap = float.MaxValue;
 
                 for (int k = 0; k < 6; k++)
                 {
-                    int j = b + k;
+                    int j = opponentBase + k;
                     if (!IsFront(j)) continue;
-                    d = Mathf.Min(d, Mathf.Abs(Players[j].Position.x - x));
+                    gap = Mathf.Min(gap, Mathf.Abs(Players[j].Position.x - x));
                 }
 
-                if (d > melhorD)
+                if (gap > bestGap)
                 {
-                    melhorD = d;
-                    melhorX = x;
+                    bestGap = gap;
+                    bestX = x;
                 }
             }
 
-            float ruido = (float)(_rng.NextDouble() * 2.0 - 1.0) * PerfilDe(Players[i].Side).RuidoMira;
+            float noise = (float)(_rng.NextDouble() * 2.0 - 1.0) * ProfileFor(Players[i].Side).AimNoise;
 
-            return new Vector2((melhorX + ruido) / 3.6f, 0f);
+            return new Vector2((bestX + noise) / 3.6f, 0f);
         }
 
-        /// <summary>A IA levanta pra quem estiver menos marcado pelo bloqueio.</summary>
-        private Vector2 AiSetAim(int levantador)
+        /// <summary>The AI sets whichever attacker the opposing block has left least covered.</summary>
+        private Vector2 AiSetAim(int setter)
         {
-            int side = Players[levantador].Side;
-            int b = TeamBase(side);
-            int opp = TeamBase(-side);
+            int side = Players[setter].Side;
+            int teamBase = TeamBase(side);
+            int opponentBase = TeamBase(-side);
 
-            float melhorX = 0f, melhorD = -1f;
+            float bestX = 0f, bestGap = -1f;
 
             for (int k = 0; k < 6; k++)
             {
-                int j = b + k;
-                if (j == levantador || !IsFront(j)) continue;
+                int j = teamBase + k;
+                if (j == setter || !IsFront(j)) continue;
                 if (EffectiveRole(j) == PlayerRole.Libero) continue;
 
                 float x = Players[j].Base.x;
-                float d = float.MaxValue;
+                float gap = float.MaxValue;
 
                 for (int m = 0; m < 6; m++)
                 {
-                    int o = opp + m;
+                    int o = opponentBase + m;
                     if (!IsFront(o)) continue;
-
-                    d = Mathf.Min(d, Mathf.Abs(Players[o].Position.x - x));
+                    gap = Mathf.Min(gap, Mathf.Abs(Players[o].Position.x - x));
                 }
 
-                if (d > melhorD)
+                if (gap > bestGap)
                 {
-                    melhorD = d;
-                    melhorX = x;
+                    bestGap = gap;
+                    bestX = x;
                 }
             }
 
-            float ruido = (float)(_rng.NextDouble() * 2.0 - 1.0) * PerfilDe(Players[levantador].Side).RuidoMira;
+            float noise = (float)(_rng.NextDouble() * 2.0 - 1.0) * ProfileFor(side).AimNoise;
 
-            return new Vector2((melhorX + ruido) / 3.6f, 0f);
+            return new Vector2((bestX + noise) / 3.6f, 0f);
         }
     }
 }

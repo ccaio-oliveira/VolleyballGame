@@ -1,25 +1,24 @@
-using log4net.Filter;
 using UnityEngine;
 
 namespace Volley.Sim
 {
-    /// <summary>Integração da bola. Tudo aqui é função pura.</summary>
+    /// <summary>Ball integration, prediction and inverse ballistics. Everything here is a pure function.</summary>
     public static class BallPhysics
     {
-        // k = (0.5 * densidade_ar * Cd * area) / massa
-        public const float K = 0.0314f;
+        /// <summary>Drag constant: k = (0.5 · air density · Cd · area) / mass.</summary>
+        public const float DragK = 0.0314f;
 
         public static readonly Vector3 Gravity = new Vector3(0f, -9.81f, 0f);
 
-        /// <summary>Gravidade + arrasto quadrático do ar.</summary>
+        /// <summary>Gravity plus quadratic air drag.</summary>
         public static Vector3 Acceleration(Vector3 velocity)
         {
-            return Gravity - K * velocity.magnitude * velocity;
+            return Gravity - DragK * velocity.magnitude * velocity;
         }
 
         /// <summary>
-        /// Avança a bola em dt segundos. Euler semi-implícito:
-        /// velocidade PRIMEIRO, posição depois. Inverter faz o integrador ganhar energia e a bola sobe sozinha ao longo do tempo.
+        /// Advances the ball by dt seconds with semi-implicit Euler: velocity FIRST, then
+        /// position. Reversing the order makes the integrator gain energy over time.
         /// </summary>
         public static BallState Step(BallState s, float dt)
         {
@@ -28,11 +27,13 @@ namespace Volley.Sim
             return s;
         }
 
+        // ================= prediction =================
+
         /// <summary>
-        /// Simula a bola pra frente até ela cruzar a altura targetY descendo.
-        /// Usa a MESMA Step() da simulação real, numa cópia do estado -
-        /// por isso é impossível a predição divergir da bola.
-        /// >/summary>
+        /// Simulates the ball forward until it crosses <paramref name="targetY"/> going down.
+        /// Uses the SAME Step() as the real simulation on a copy of the state, so the
+        /// prediction can never diverge from the ball.
+        /// </summary>
         public static bool PredictLanding(BallState s, float targetY, float dt, float maxTime, out Vector3 hit, out float time)
         {
             hit = Vector3.zero;
@@ -42,48 +43,90 @@ namespace Volley.Sim
 
             for (int i = 0; i < maxSteps; i++)
             {
-                BallState prev = s;
+                BallState previous = s;
                 s = Step(s, dt);
                 time += dt;
 
-                // travessia descendente do plano Y = targetY
-                if (prev.Position.y > targetY && s.Position.y <= targetY)
+                // downward crossing of the plane y = targetY
+                if (previous.Position.y > targetY && s.Position.y <= targetY)
                 {
-                    float denom = prev.Position.y - s.Position.y;
-                    float f = denom > 1e-6f ? (prev.Position.y - targetY) / denom : 0f;
+                    float denominator = previous.Position.y - s.Position.y;
+                    float t = denominator > 1e-6f ? (previous.Position.y - targetY) / denominator : 0f;
 
-                    hit = Vector3.Lerp(prev.Position, s.Position, f);
-                    time = time - dt + f * dt;
+                    hit = Vector3.Lerp(previous.Position, s.Position, t);
+                    time = time - dt + t * dt;
                     return true;
                 }
             }
 
-            return false; // não cruzou dentro de maxTime
+            return false;   // did not cross within maxTime
         }
 
+        /// <summary>Where and when the ball crosses the net plane (z = 0).</summary>
+        public static bool PredictNetCross(BallState s, float dt, out Vector3 point, out float time, float maxTime = 4f)
+        {
+            point = Vector3.zero;
+            time = 0f;
+
+            int maxSteps = Mathf.CeilToInt(maxTime / dt);
+
+            for (int i = 0; i < maxSteps; i++)
+            {
+                BallState previous = s;
+                s = Step(s, dt);
+                time += dt;
+
+                float z0 = previous.Position.z;
+                float z1 = s.Position.z;
+                bool crossed = (z0 < 0f && z1 >= 0f) || (z0 > 0f && z1 <= 0f);
+
+                if (crossed)
+                {
+                    float t = -z0 / (z1 - z0);
+                    point = Vector3.Lerp(previous.Position, s.Position, t);
+                    time = time - dt + t * dt;
+                    return true;
+                }
+
+                if (s.Position.y <= Court.BallRadius) break;
+            }
+
+            return false;
+        }
+
+        /// <summary>Height at which the ball crosses the net plane; NaN if it never does.</summary>
+        public static float NetCrossHeight(BallState s, float dt, float maxTime = 8f)
+        {
+            return PredictNetCross(s, dt, out Vector3 point, out _, maxTime) ? point.y : float.NaN;
+        }
+
+        // ================= inverse ballistics =================
+
         /// <summary>
-        /// Balística inversa: dado o ponto de contato, o alvo e o ângulo de saída, acha por
-        /// busca binária a velocidade que faz a bola cair no alvo.
-        /// <summary>
-        public static bool SolveLaunch(Vector3 from, Vector3 target, float angleDeg, float dt, out Vector3 velocity, float minSpeed = 1f, float maxSpeed = 40f, int interations = 20)
+        /// Given the contact point, the target and the launch angle, binary-searches the
+        /// speed that makes the ball land on the target.
+        /// </summary>
+        public static bool SolveLaunch(Vector3 from, Vector3 target, float angleDeg, float dt, out Vector3 velocity,
+                                       float minSpeed = 1f, float maxSpeed = 40f, int iterations = 20)
         {
             velocity = Vector3.zero;
 
             Vector3 flat = new Vector3(target.x - from.x, 0f, target.z - from.z);
             float wanted = flat.magnitude;
-            if(wanted < 1e-4f) return false;
+            if (wanted < 1e-4f) return false;
 
-            Vector3 dir = flat /wanted;
+            Vector3 direction = flat / wanted;
             float rad = angleDeg * Mathf.Deg2Rad;
 
-            Vector3 unit = new Vector3(dir.x * Mathf.Cos(rad), Mathf.Sin(rad), dir.z * Mathf.Cos(rad));
+            Vector3 unit = new Vector3(direction.x * Mathf.Cos(rad), Mathf.Sin(rad), direction.z * Mathf.Cos(rad));
 
-            // valida o bracket antes de buscar
+            // validate the bracket before searching: a binary search without a valid
+            // bracket converges to the edge and returns garbage that looks like an answer
             if (RangeFor(from, unit, maxSpeed, target.y, dt) < wanted) return false;
             if (RangeFor(from, unit, minSpeed, target.y, dt) > wanted) return false;
 
             float lo = minSpeed, hi = maxSpeed;
-            for (int i = 0; i < interations; i++)
+            for (int i = 0; i < iterations; i++)
             {
                 float mid = 0.5f * (lo + hi);
                 if (RangeFor(from, unit, mid, target.y, dt) < wanted) lo = mid;
@@ -94,47 +137,12 @@ namespace Volley.Sim
             return true;
         }
 
-        /// <summary>Onde e quando a bola cruza o plano da rede (z = 0).</summary>
-        public static bool PredictNetCross(BallState s, float dt, out Vector3 point, out float time, float maxTime = 4f)
-        {
-            point = Vector3.zero;
-            time = 0f;
-
-            int maxSteps = Mathf.CeilToInt(maxTime / dt);
-
-            for (int i = 0; i < maxSteps; i++)
-            {
-                BallState prev = s;
-                s = Step(s, dt);
-                time += dt;
-
-                float z0 = prev.Position.z, z1 = s.Position.z;
-                bool crossed = (z0 < 0f && z1 >= 0f) || (z0 > 0f && z1 <= 0f);
-
-                if (crossed)
-                {
-                    float f = -z0 / (z1 - z0);
-                    point = Vector3.Lerp(prev.Position, s.Position, f);
-                    time = time - dt + f * dt;
-                    return true;
-                }
-
-                if (s.Position.y <= Court.BallRadius) break;
-            }
-
-            return false;
-        }
-
-        public static float NetCrossHeight(BallState s, float dt, float maxTime = 8f)
-        {
-            return PredictNetCross(s, dt, out Vector3 p, out _, maxTime) ? p.y : float.NaN;
-        }
-
         /// <summary>
-        /// Acha a trajetória mais esticada (menor ângulo) que atinge o alvo e ainda cruza
-        /// a rede com a folga pedida. Bola rasa é bola rápida.
+        /// Finds the flattest trajectory (smallest angle) that reaches the target and still
+        /// crosses the net with the requested clearance. A flat ball is a fast ball.
         /// </summary>
-        public static bool SolveFlattestLegal(Vector3 from, Vector3 target, float netHeight, float clearance, float dt, out Vector3 velocity, float minAngle = 5f, float maxAngle = 60f, float angleStep = 1f)
+        public static bool SolveFlattestLegal(Vector3 from, Vector3 target, float netHeight, float clearance, float dt,
+                                              out Vector3 velocity, float minAngle = 5f, float maxAngle = 60f, float angleStep = 1f)
         {
             velocity = Vector3.zero;
 
@@ -142,16 +150,16 @@ namespace Volley.Sim
 
             for (int i = 0; i <= steps; i++)
             {
-                float a = minAngle + i * angleStep;
+                float angle = minAngle + i * angleStep;   // derived from the index, never accumulated
 
-                if (!SolveLaunch(from, target, a, dt, out Vector3 v)) continue;
+                if (!SolveLaunch(from, target, angle, dt, out Vector3 candidate)) continue;
 
-                float yNet = NetCrossHeight(new BallState(from, v), dt);
-                if (float.IsNaN(yNet)) continue;
+                float netY = NetCrossHeight(new BallState(from, candidate), dt);
+                if (float.IsNaN(netY)) continue;
 
-                if (yNet >= netHeight + clearance)
+                if (netY >= netHeight + clearance)
                 {
-                    velocity = v;
+                    velocity = candidate;
                     return true;
                 }
             }
@@ -159,17 +167,22 @@ namespace Volley.Sim
             return false;
         }
 
-        /// <summary>Alcance horizontal de um lançamento, usando a simulação real.</summary>
+        /// <summary>Horizontal range of a launch, measured with the real simulation.</summary>
         private static float RangeFor(Vector3 from, Vector3 unit, float speed, float targetY, float dt)
         {
             BallState s = new BallState(from, unit * speed);
 
-            if (PredictLanding(s, targetY, dt, 8f, out Vector3 hit, out _)) return new Vector2(hit.x - from.x, hit.z - from.z).magnitude;
+            if (PredictLanding(s, targetY, dt, 8f, out Vector3 hit, out _))
+                return new Vector2(hit.x - from.x, hit.z - from.z).magnitude;
 
-            return Apex(from, unit * speed, dt) < targetY ? 0f : float.MaxValue;
+            // It never crossed targetY going down — for two OPPOSITE reasons. Without
+            // telling them apart, the binary search walks the wrong way.
+            return Apex(from, unit * speed, dt) < targetY
+                ? 0f                // too weak: never rose that high
+                : float.MaxValue;   // too strong: still in the air
         }
 
-        /// <summary>Altura máxima que a bola atinge neste lançamento.</summary>
+        /// <summary>Maximum height the ball reaches on this launch.</summary>
         private static float Apex(Vector3 from, Vector3 velocity, float dt)
         {
             BallState s = new BallState(from, velocity);
@@ -178,8 +191,7 @@ namespace Volley.Sim
             for (int i = 0; i < 1200; i++)
             {
                 s = Step(s, dt);
-                if (s.Position.y <= peak) break;
-
+                if (s.Position.y <= peak) break;   // started descending
                 peak = s.Position.y;
             }
 

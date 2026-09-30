@@ -3,6 +3,7 @@ using Volley.Bootstrap;
 
 namespace Volley.View
 {
+    /// <summary>Dot on the net where the ball is about to cross — the key read for blocking.</summary>
     public class NetCrossView : MonoBehaviour
     {
         [SerializeField] private GameRoot root;
@@ -13,7 +14,10 @@ namespace Volley.View
             if (root == null) return;
             var sim = root.Sim;
 
-            bool show = sim.BallLive && sim.HasNetCross && sim.TimeToNet < 1.2f && sim.NetCrossPoint.y > 0f;
+            bool show = sim.BallLive
+                     && sim.HasNetCross
+                     && sim.TimeToNet < 1.2f
+                     && sim.NetCrossPoint.y > 0f;
 
             if (dot != null) dot.enabled = show;
             if (!show) return;

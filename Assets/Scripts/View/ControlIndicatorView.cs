@@ -3,6 +3,7 @@ using Volley.Bootstrap;
 
 namespace Volley.View
 {
+    /// <summary>Ring on the floor under the player the human controls.</summary>
     public class ControlIndicatorView : MonoBehaviour
     {
         [SerializeField] private GameRoot root;
@@ -13,17 +14,14 @@ namespace Volley.View
             if (root == null) return;
 
             int i = root.Sim.ControlledIndex;
-            if (i < 0 || i >= root.Sim.Players.Length)
-            {
-                if (ring != null) ring.enabled = false;
-                return;
-            }
+            bool valid = i >= 0 && i < root.Sim.Players.Length;
 
-            if (ring != null) ring.enabled = true;
+            if (ring != null) ring.enabled = valid;
+            if (!valid) return;
 
-            Vector3 p = root.Sim.Players[i].Position;
-            p.y = 0.02f;
-            transform.position = p;
+            Vector3 position = root.Sim.Players[i].Position;
+            position.y = 0.02f;
+            transform.position = position;
         }
     }
 }

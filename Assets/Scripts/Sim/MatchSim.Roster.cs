@@ -2,230 +2,225 @@ using UnityEngine;
 
 namespace Volley.Sim
 {
-    /// <summary>Elenco, zonas, rodízio, papéis e fases.</summary>
+    /// <summary>Roster, rotation, zones, roles, phases and who plays the ball.</summary>
     public partial class MatchSim
     {
+        // ---------- court geometry for the rotation ----------
+
+        // rotation order: whoever is in zone 1 moves to 6, from 6 to 5, and so on
+        private static readonly int[] RotationOrder = { 1, 6, 5, 4, 3, 2 };
+
+        // (x, z) of zones 1..6 seen from side B; side A mirrors both axes
+        private static readonly Vector2[] ZoneCoordinates =
+        {
+            new Vector2(-3.0f, 6.5f),   // 1 back right
+            new Vector2(-3.0f, 2.0f),   // 2 front right
+            new Vector2( 0.0f, 2.0f),   // 3 front center
+            new Vector2( 3.0f, 2.0f),   // 4 front left
+            new Vector2( 3.0f, 6.5f),   // 5 back left
+            new Vector2( 0.0f, 6.5f),   // 6 back center
+        };
+
+        // 5-1 lineup by slot; diagonals are 0-3, 1-4 and 2-5
+        private static readonly PlayerRole[] SlotRoles =
+        {
+            PlayerRole.Setter,          // 0
+            PlayerRole.OutsideHitter,   // 1
+            PlayerRole.MiddleBlocker,   // 2
+            PlayerRole.Opposite,        // 3
+            PlayerRole.OutsideHitter,   // 4
+            PlayerRole.MiddleBlocker,   // 5
+        };
+
+        // ---------- who plays the ball ----------
+
         /// <summary>
-        /// Quem joga a próxima bola: no 1º toque quem estiver mais perto de onde a bola vai cair; depois o levantador e o atacante do time.
+        /// Who plays the next ball: on the first touch whoever is closest to the contact
+        /// point; then the setter; then the attacker. Nobody touches twice in a row.
         /// </summary>
         public int ActiveIndex
         {
             get
             {
-                int b = TeamBase(Rally.TouchingSide);
+                int teamBase = TeamBase(Rally.TouchingSide);
 
-                if (Rally.TouchCount == 0) return ClosestTo(b, ContactPoint, Rally.LastToucher);
+                if (Rally.TouchCount == 0)
+                    return ClosestTo(teamBase, ContactPoint, Rally.LastToucher);
 
                 if (Rally.TouchCount == 1)
                 {
-                    int lev = FindRole(b, PlayerRole.Levantador);
+                    int setter = FindRole(teamBase, PlayerRole.Setter);
+                    if (setter >= 0 && setter != Rally.LastToucher) return setter;
 
-                    if (lev >= 0 && lev != Rally.LastToucher) return lev;
-                    
-                    return ClosestTo(b, ContactPoint, Rally.LastToucher);
+                    // the setter took the first ball: someone else covers the second
+                    return ClosestTo(teamBase, ContactPoint, Rally.LastToucher);
                 }
 
-                return ClosestTo(b, ContactPoint, Rally.LastToucher, true);
+                // no front-row restriction: with physical jumps, back-row players attack too;
+                // the 3 m line rule in ResolveTouch judges legality
+                return ClosestTo(teamBase, ContactPoint, Rally.LastToucher);
             }
         }
 
-        /// <summary>Manchete na cintura, levantamento acima da cabeça.</summary>
-        public float ActiveContactHeight
-        {
-            get
-            {
-                switch (Rally.TouchCount)
-                {
-                    case 1: return 2.10f;
-                    case 2: return 3.00f;
-                    default: return 0.90f;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Quem o humano controla. Só muda em evento discreto, nunca no meio do voo.
-        /// </summary>
+        /// <summary>Who the human controls. Fixed to the chosen position for the whole match.</summary>
         public int ControlledIndex => HumanIndex;
 
-        private int FindRole(int b, PlayerRole r)
+        private int FindRole(int teamBase, PlayerRole role)
         {
             for (int k = 0; k < 6; k++)
             {
-                if (Players[b + k].Role == r) return b + k;
+                if (Players[teamBase + k].Role == role) return teamBase + k;
             }
 
             return -1;
         }
 
-        private int ClosestTo(int b, Vector3 p, int exclude = -1, bool frontOnly = false)
+        private int ClosestTo(int teamBase, Vector3 point, int exclude = -1, bool frontOnly = false)
         {
             int best = -1;
-            float bestD = float.MaxValue;
+            float bestDistance = float.MaxValue;
 
             for (int k = 0; k < 6; k++)
             {
-                int idx = b + k;
-                if (idx == exclude) continue;
-                if (frontOnly && !IsFront(idx)) continue;
+                int index = teamBase + k;
+                if (index == exclude) continue;
+                if (frontOnly && !IsFront(index)) continue;
 
-                float d = Vector2.Distance(
-                    new Vector2(Players[idx].Position.x, Players[idx].Position.z),
-                    new Vector2(p.x, p.z)
-                );
+                float distance = Vector2.Distance(
+                    new Vector2(Players[index].Position.x, Players[index].Position.z),
+                    new Vector2(point.x, point.z));
 
-                if (d < bestD)
+                if (distance < bestDistance)
                 {
-                    bestD = d;
-                    best = idx;
+                    bestDistance = distance;
+                    best = index;
                 }
             }
 
-            if (best < 0 && frontOnly) return ClosestTo(b, p, exclude, false);
+            if (best < 0 && frontOnly) return ClosestTo(teamBase, point, exclude, false);
 
-            return best < 0 ? b : best;
+            return best < 0 ? teamBase : best;
         }
 
-        private int FrontClosestToX(int b, float x)
+        private int FrontClosestToX(int teamBase, float x)
         {
             int best = -1;
-            float bestD = float.MaxValue;
+            float bestDistance = float.MaxValue;
 
             for (int k = 0; k < 6; k++)
             {
-                int i = b + k;
-                if (!IsFront(i)) continue;
+                int index = teamBase + k;
+                if (!IsFront(index)) continue;
 
-                float d = Mathf.Abs(Players[i].Position.x - x);
-
-                if (d < bestD)
+                float distance = Mathf.Abs(Players[index].Position.x - x);
+                if (distance < bestDistance)
                 {
-                    bestD = d;
-                    best = i;
+                    bestDistance = distance;
+                    best = index;
                 }
             }
 
             return best;
         }
 
-        private static readonly int[] RotOrder = { 1, 6, 5, 4, 3, 2 };
-
-        // (x, z) das zonas 1...6 vistas do lado B; o lado A espelha os dois eixos
-        private static readonly Vector2[] ZoneXZ =
-        {
-            new Vector2(-3.0f, 6.5f), // 1 fundo direita
-            new Vector2(-3.0f, 2.0f), // 2 frente direita
-            new Vector2(0.0f, 2.0f), // 3 frente centro
-            new Vector2(3.0f, 2.0f), // 4 frente esquerda
-            new Vector2(3.0f, 6.5f), // 5 fundo esquerda
-            new Vector2(0.0f, 6.5f), // 6 fundo centro
-        };
-
-        private static readonly PlayerRole[] SlotRole =
-        {
-            PlayerRole.Levantador,   // 0  ─┐ diagonal
-            PlayerRole.Ponteiro,     // 1  ─┼─┐
-            PlayerRole.Central,      // 2  ─┼─┼─┐
-            PlayerRole.Oposto,       // 3  ─┘ │ │
-            PlayerRole.Ponteiro,     // 4  ───┘ │
-            PlayerRole.Central,      // 5  ─────┘
-        };
-
-        public enum TeamPhase { Saque, Recepcao, Ataque, Defesa }
+        // ---------- phases and roles ----------
 
         public TeamPhase PhaseOf(int side)
         {
             if (Rally.ServeInFlight)
-            {
-                return (Rally.ServingSide == side) ? TeamPhase.Saque : TeamPhase.Recepcao;
-            }
+                return (Rally.ServingSide == side) ? TeamPhase.Serve : TeamPhase.Reception;
 
-            return (Rally.TouchingSide == side) ? TeamPhase.Ataque : TeamPhase.Defesa;
+            return (Rally.TouchingSide == side) ? TeamPhase.Attack : TeamPhase.Defense;
         }
 
         /// <summary>
-        /// Aproximação do líbero: um central que rodizia para o fundo joga como líbero.
-        /// A substituição de verdade precisa de elenco com reservas - M6.
+        /// Libero approximation: a middle blocker who rotates to the back row plays as
+        /// libero, except in zone 1 where he serves. A real substitution needs a roster
+        /// with reserves.
         /// </summary>
-        public PlayerRole EffectiveRole(int i) {
-            if (Players[i].Role != PlayerRole.Central) return Players[i].Role;
-
-            if (IsFront(i)) return PlayerRole.Central;
-
-            if (ZoneOf(i) == 1) return PlayerRole.Central; // saca; o líbero só entra depois
+        public PlayerRole EffectiveRole(int i)
+        {
+            if (Players[i].Role != PlayerRole.MiddleBlocker) return Players[i].Role;
+            if (IsFront(i)) return PlayerRole.MiddleBlocker;
+            if (ZoneOf(i) == 1) return PlayerRole.MiddleBlocker;   // serves; the libero comes in afterwards
 
             return PlayerRole.Libero;
-        } 
+        }
 
-        private static bool Recebe(PlayerRole r) => r == PlayerRole.Ponteiro || r == PlayerRole.Libero;
+        /// <summary>Passers in serve reception: both outside hitters and the libero.</summary>
+        private static bool IsReceiver(PlayerRole role)
+            => role == PlayerRole.OutsideHitter || role == PlayerRole.Libero;
 
-        public static int SlotForRole(PlayerRole r, int nth)
+        /// <summary>Slot of the n-th player with <paramref name="role"/> in the lineup.</summary>
+        public static int SlotForRole(PlayerRole role, int nth)
         {
-            int achados = 0;
+            int found = 0;
             for (int k = 0; k < 6; k++)
             {
-                if (SlotRole[k] != r) continue;
-                if (achados == nth) return k;
-                achados++;
+                if (SlotRoles[k] != role) continue;
+                if (found == nth) return k;
+                found++;
             }
+
             return 0;
         }
 
-        // ============= rodízio ==============
-        public static Vector3 ZonePos(int zone, int side)
+        // ---------- rotation ----------
+
+        public static Vector3 ZonePosition(int zone, int side)
         {
-            Vector2 v = ZoneXZ[zone - 1];
+            Vector2 v = ZoneCoordinates[zone - 1];
             return new Vector3(v.x * side, 0f, v.y * side);
         }
 
         public int ZoneOf(int i)
         {
-            int t = TeamIdx(Players[i].Side);
-            return RotOrder[(Players[i].Slot + Rotation[t]) % 6];
+            int team = TeamIndex(Players[i].Side);
+            return RotationOrder[(Players[i].Slot + Rotation[team]) % 6];
         }
 
-        /// <summary>Zonas 2, 3 e 4 são a linha de frente: só elas bloqueiam.</summary>
+        /// <summary>Zones 2, 3 and 4 form the front row: only they may block.</summary>
         public bool IsFront(int i)
         {
-            int z = ZoneOf(i);
-            return z >= 2 && z <= 4;
+            int zone = ZoneOf(i);
+            return zone >= 2 && zone <= 4;
         }
 
         private void Rotate(int side)
         {
-            int t = TeamIdx(side);
-            Rotation[t] = (Rotation[t] + 1) % 6;
-            OnLog?.Invoke($"rodízio do lado {SideName(side)} -> rotação {Rotation[t]}");
+            int team = TeamIndex(side);
+            Rotation[team] = (Rotation[team] + 1) % 6;
+            OnLog?.Invoke($"rodízio do lado {SideName(side)} -> rotação {Rotation[team]}");
         }
 
         private void SetupTeam(int side)
         {
-            int b = TeamBase(side);
-            int slotHumano = SlotForRole(HumanRole, HumanRoleIndex);
+            int teamBase = TeamBase(side);
+            int humanSlot = SlotForRole(HumanRole, HumanRoleIndex);
 
             for (int k = 0; k < 6; k++)
             {
-                int i = b + k;
+                int i = teamBase + k;
                 Players[i] = new PlayerState
                 {
                     Id = i,
                     Side = side,
                     Slot = k,
-                    Role = SlotRole[k]
+                    Role = SlotRoles[k],
                 };
 
                 Attrs[i] = PlayerAttributes.Default;
-                IsHuman[i] = (side == HumanSide) && (k == slotHumano);
+                IsHuman[i] = (side == HumanSide) && (k == humanSlot);
                 if (IsHuman[i]) HumanIndex = i;
             }
 
+            // second pass: ZoneOf and HomeFor need Side and Slot already filled
             for (int k = 0; k < 6; k++)
             {
-                int i = b + k;
-                Vector3 p = ZonePos(ZoneOf(i), side);
+                int i = teamBase + k;
 
                 Players[i].Base = HomeFor(i);
-                Players[i].Position = ZonePos(ZoneOf(i), side);
+                Players[i].Position = ZonePosition(ZoneOf(i), side);   // legal rotation at the serve
                 Players[i].Velocity = Vector3.zero;
                 Players[i].BlockTimer = 0f;
             }

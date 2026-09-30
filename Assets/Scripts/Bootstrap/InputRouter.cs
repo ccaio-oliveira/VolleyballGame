@@ -1,68 +1,66 @@
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 
 namespace Volley.Bootstrap
 {
-    /// <summary
-    /// Único lugar do projeto que conhece o hardware. Devolve intenção em espaço de TELA:
-    /// x = direita, y = frente.
-    /// /<summary>
+    /// <summary>
+    /// The only place in the project that knows about hardware. Returns intent in SCREEN
+    /// space: x = right, y = forward. Buttons use positional names, so the same code maps
+    /// to Xbox (A/B/X/Y) and PlayStation (✕/○/▢/△).
+    /// </summary>
     public static class InputRouter
     {
-        private const float Deadzone = 0.18f;
+        private const float StickDeadzone = 0.18f;
 
         public static Vector2 ReadMove()
         {
-            Vector2 v = Vector2.zero;
+            Vector2 move = Vector2.zero;
 
-            var kb = Keyboard.current;
-            if (kb != null)
+            var keyboard = Keyboard.current;
+            if (keyboard != null)
             {
-                if (kb.aKey.isPressed) v.x -= 1f;
-                if (kb.dKey.isPressed) v.x += 1f;
-                if (kb.sKey.isPressed) v.y -= 1f;
-                if (kb.wKey.isPressed) v.y += 1f;
-                if (v.sqrMagnitude > 1f) v = v.normalized;
+                if (keyboard.aKey.isPressed) move.x -= 1f;
+                if (keyboard.dKey.isPressed) move.x += 1f;
+                if (keyboard.sKey.isPressed) move.y -= 1f;
+                if (keyboard.wKey.isPressed) move.y += 1f;
+
+                // without normalizing, diagonals would be 41% faster
+                if (move.sqrMagnitude > 1f) move = move.normalized;
             }
 
-            var gp = Gamepad.current;
-            if (gp != null)
+            var gamepad = Gamepad.current;
+            if (gamepad != null)
             {
-                Vector2 stick = gp.leftStick.ReadValue();
-                float mag = stick.magnitude;
+                Vector2 stick = gamepad.leftStick.ReadValue();
+                float magnitude = stick.magnitude;
 
-                if (mag > Deadzone)
+                if (magnitude > StickDeadzone)
                 {
-                    // reescala pra recuperar o range cheio: logo após a deadzone
-                    // o jogador ainda anda devagar, e no talo anda 100%.
-                    float scaled = Mathf.InverseLerp(Deadzone, 1f, Mathf.Min(mag, 1f));
-                    v = stick / mag * scaled;
+                    // rescale to recover the full range: just past the deadzone the player
+                    // still walks slowly, and at full tilt runs at 100%
+                    float scaled = Mathf.InverseLerp(StickDeadzone, 1f, Mathf.Min(magnitude, 1f));
+                    move = stick / magnitude * scaled;
                 }
             }
 
-            return v;
+            return move;
         }
 
-        public static bool ReceivePressed()
-        {
-            var kb = Keyboard.current;
-            var gp = Gamepad.current;
-            return (kb != null && kb.fKey.wasPressedThisFrame) || (gp != null && gp.buttonSouth.wasPressedThisFrame);
-        }
+        public static bool ServePressed()  => ButtonPressed(k => k.enterKey, g => g.startButton);
+        public static bool JumpPressed()   => ButtonPressed(k => k.spaceKey, g => g.buttonSouth);   // ✕ / A
+        public static bool PassPressed()   => ButtonPressed(k => k.fKey,     g => g.buttonEast);    // ○ / B
+        public static bool AttackPressed() => ButtonPressed(k => k.jKey,     g => g.buttonWest);    // ▢ / X
+        public static bool BlockPressed()  => ButtonPressed(k => k.lKey,     g => g.buttonNorth);   // △ / Y
 
-        public static bool ServePressed()
+        private static bool ButtonPressed(Func<Keyboard, KeyControl> key, Func<Gamepad, ButtonControl> button)
         {
-            var kb = Keyboard.current;
-            var gp = Gamepad.current;
-            return (kb != null && kb.spaceKey.wasPressedThisFrame) || (gp != null && gp.buttonWest.wasPressedThisFrame);
-        }
+            var keyboard = Keyboard.current;
+            var gamepad = Gamepad.current;
 
-        public static bool BlockPressed()
-        {
-            var kb = Keyboard.current;
-            var gp = Gamepad.current;
-
-            return (kb != null && kb.jKey.wasPressedThisFrame) || (gp != null && gp.buttonNorth.wasPressedThisFrame);
+            return (keyboard != null && key(keyboard).wasPressedThisFrame)
+                || (gamepad != null && button(gamepad).wasPressedThisFrame);
         }
     }
 }
